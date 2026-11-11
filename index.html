@@ -185,6 +185,28 @@
         .badge-exact { background: #dcfce7; color: #15803d; }
         .badge-strong { background: #dbeafe; color: #1d4ed8; }
         .badge-weak { background: #fef3c7; color: #b45309; }
+        .updated-note {
+            margin-top: 12px;
+            font-size: 12px;
+            color: #64748b;
+            line-height: 1.8;
+            display: none;
+        }
+        .updated-note .u-title {
+            display: block;
+            color: #475569;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .updated-note .u-item {
+            display: inline-block;
+            margin: 0 10px 4px 0;
+            padding: 2px 8px;
+            background: #f1f5f9;
+            border-radius: 4px;
+            color: #475569;
+            white-space: nowrap;
+        }
         .footer-note {
             margin-top: 16px;
             font-size: 12px;
@@ -246,7 +268,7 @@
             <table>
                 <thead>
                     <tr>
-                        <th>分類</th>
+                        <th id="thCategory">分類</th>
                         <th>品名規格</th>
                         <th>富田</th>
                         <th>仙豐</th>
@@ -267,6 +289,7 @@
             </table>
         </div>
 
+        <div class="updated-note" id="updatedNote"></div>
         <div class="footer-note">
             ※ 5+1 = 買5送1（單價 = 原價 × 5/6）；10+1 = 買10送1（單價 = 原價 × 10/11）；可與折扣疊加計算<br>
             ※ 價格來源：Google 試算表，空白表示該廠無此品項或未列價<br>
@@ -278,7 +301,8 @@
     <script>
         // ===== 資料來源 =====
         // 1) Google 試算表 CSV（主要來源，更新價格只需改試算表）
-        const CSV_URL = 'https://docs.google.com/spreadsheets/d/1FZUoXIzkiQ1cef2juAEwkObSNH-sPTSE/export?format=csv&gid=0';
+        // 注意：不能加 &gid=0，實測 Google 對該參數回 HTTP 400；不帶 gid 才會回第一張工作表
+        const CSV_URL = 'https://docs.google.com/spreadsheets/d/1FZUoXIzkiQ1cef2juAEwkObSNH-sPTSE/export?format=csv';
         // 2) 本機 CSV 備援（把試算表另存成 CSV，放在同目錄並命名 data.csv）
         const LOCAL_CSV_URL = 'data.csv';
         // 3) 示範資料（僅供測試畫面與計算，非實際牌價）
@@ -300,6 +324,7 @@
         const NAME_KEYS = ['品名規格', '品名', '品名/規格', '品項'];
 
         let allData = [];
+        let hasCategory = true;
         let currentMode = 'origin'; // origin, 5+1, 10+1
         let discount = 10; // 預設10折（無折扣）
 
@@ -640,37 +665,93 @@
             return rows;
         }
 
+        // 表頭正規化：去掉 BOM、合併所有空白（含換行）
+        function normHeader(h) {
+            return String(h === undefined || h === null ? '' : h)
+                .replace(/^\uFEFF/, '')
+                .replace(/[\s\u3000]+/g, ' ')
+                .trim();
+        }
+
+        // 從表頭文字判斷是哪一家廠牌（例：'富田 115年11月價格 (2026.11.01)' → '富田'）
+        function factoryOfHeader(h) {
+            if (!h) return null;
+            for (let i = 0; i < FACTORIES.length; i++) {
+                if (h.indexOf(FACTORIES[i]) === 0) return FACTORIES[i];
+            }
+            for (let i = 0; i < FACTORIES.length; i++) {
+                if (h.indexOf(FACTORIES[i]) !== -1) return FACTORIES[i];
+            }
+            return null;
+        }
+
+        // 從表頭解析「版本新舊」，越大越新；解析不到回 -1
+        // 支援 115年11月（民國）、2026.11.01、2026年7月、2025/12 等寫法
+        function versionScore(h) {
+            let m = String(h).match(/(20\d{2})\s*[.\/年]\s*(\d{1,2})/);
+            if (m) return parseInt(m[1], 10) * 100 + parseInt(m[2], 10);
+            m = String(h).match(/(1\d{2})\s*年\s*(\d{1,2})\s*月/);
+            if (m) return (parseInt(m[1], 10) + 1911) * 100 + parseInt(m[2], 10);
+            m = String(h).match(/(1\d{2})\s*年/);
+            if (m) return (parseInt(m[1], 10) + 1911) * 100;
+            if (/最新/.test(String(h))) return 999999;
+            return -1;
+        }
+
         // 找出表頭列（容忍試算表上方有標題列）
         function findHeaderIndex(rows) {
             const limit = Math.min(rows.length, 10);
             for (let i = 0; i < limit; i++) {
-                const cells = rows[i].map(function(c) { return String(c).replace(/^\uFEFF/, '').trim(); });
+                const cells = rows[i].map(normHeader);
                 const hasName = cells.some(function(c) { return NAME_KEYS.indexOf(c) !== -1; });
-                const hasFactory = cells.filter(function(c) { return FACTORIES.indexOf(c) !== -1; }).length >= 2;
-                if (hasName && hasFactory) return i;
+                const factories = cells.map(factoryOfHeader).filter(function(f) { return f !== null; });
+                if (hasName && factories.length >= 2) return i;
             }
             return 0;
         }
 
         // 把 CSV 文字轉成資料陣列
+        // 同一廠牌可能有多個年份／月份欄位時，自動取「最新」那一欄
         function buildData(csvText) {
             const rows = parseCSV(csvText);
-            if (rows.length === 0) return { data: [], missing: FACTORIES, head: [] };
+            if (rows.length === 0) return { data: [], missing: FACTORIES, head: [], updated: {}, hasCategory: false };
 
             const hi = findHeaderIndex(rows);
-            const head = rows[hi].map(function(h) { return String(h).replace(/^\uFEFF/, '').trim(); });
+            const head = (rows[hi] || []).map(normHeader);
 
             const catIdx = head.findIndex(function(h) { return CATEGORY_KEYS.indexOf(h) !== -1; });
             const nameIdx = head.findIndex(function(h) { return NAME_KEYS.indexOf(h) !== -1; });
-            const factoryIdx = {};
-            FACTORIES.forEach(function(f) { factoryIdx[f] = head.indexOf(f); });
 
-            const missing = FACTORIES.filter(function(f) { return factoryIdx[f] === -1; });
+            // 每個廠牌收集所有版本欄位（新 → 舊）；某列在新欄沒有價時，往前找有價的欄位
+            const cols = {};
+            head.forEach(function(h, idx) {
+                if (idx === nameIdx || idx === catIdx) return;
+                const f = factoryOfHeader(h);
+                if (!f) return;
+                if (!cols[f]) cols[f] = [];
+                cols[f].push({ idx: idx, score: versionScore(h), label: h });
+            });
+            FACTORIES.forEach(function(f) {
+                if (cols[f]) cols[f].sort(function(a, b) { return b.score - a.score; });
+            });
+
+            const updated = {};
+            FACTORIES.forEach(function(f) {
+                if (cols[f] && cols[f].length > 0) updated[f] = cols[f][0].label;
+            });
+
+            const missing = FACTORIES.filter(function(f) { return !cols[f] || cols[f].length === 0; });
 
             const data = rows.slice(hi + 1).map(function(r) {
                 const priceObj = {};
                 FACTORIES.forEach(function(f) {
-                    priceObj[f] = factoryIdx[f] === -1 ? null : parsePrice(r[factoryIdx[f]]);
+                    priceObj[f] = null;
+                    const list = cols[f];
+                    if (!list) return;
+                    for (let k = 0; k < list.length; k++) {
+                        const val = parsePrice(r[list[k].idx]);
+                        if (val !== null && val !== undefined) { priceObj[f] = val; return; }
+                    }
                 });
                 const name = nameIdx === -1 ? '' : String(r[nameIdx] || '').trim();
                 const parts = splitNameSpec(name);
@@ -683,7 +764,7 @@
                 };
             }).filter(function(item) { return item.name !== ''; });
 
-            return { data: data, missing: missing, head: head };
+            return { data: data, missing: missing, head: head, updated: updated, hasCategory: catIdx !== -1 };
         }
 
         // 解析價格，非數字保留原文
@@ -731,7 +812,14 @@
         function applyCsv(csvText, sourceLabel, isDemo) {
             const built = buildData(csvText);
             allData = built.data;
+            hasCategory = !!built.hasCategory;
             buildSearchIndex();
+
+            // 來源沒有分類欄時，把分類欄位與分類篩選收起來（避免出現空欄與無效控制項）
+            const thCat = document.getElementById('thCategory');
+            if (thCat) thCat.style.display = hasCategory ? '' : 'none';
+            const catSel = document.getElementById('categorySelect');
+            if (catSel) catSel.style.display = hasCategory ? '' : 'none';
 
             let msg = '資料來源：' + sourceLabel + '｜已載入 ' + allData.length + ' 筆品項';
             let color = '#94a3b8';
@@ -745,6 +833,7 @@
             }
             setStatus(msg, color);
             renderTable();
+            renderUpdatedNote(built.updated);
 
             // 若使用者在載入期間已經打了字，載入完成後補上預選清單
             const si = document.getElementById('searchInput');
@@ -752,6 +841,21 @@
                 renderSuggestions();
             }
             return built;
+        }
+
+        function renderUpdatedNote(updated) {
+            const el = document.getElementById('updatedNote');
+            if (!el) return;
+            const parts = [];
+            FACTORIES.forEach(function(f) {
+                const label = updated && updated[f];
+                if (!label || label === f) return; // 單一欄位且無年份，不必特別說明
+                parts.push(escapeHtml(f) + '：' + escapeHtml(label));
+            });
+            if (parts.length === 0) { el.style.display = 'none'; el.textContent = ''; return; }
+            el.style.display = 'block';
+            el.innerHTML = '<span class="u-title">各廠牌最新價格欄位（該欄無價時往前找有價的欄位）</span>' +
+                parts.map(function(p) { return '<span class="u-item">' + p + '</span>'; }).join('');
         }
 
         function fetchText(url, timeoutMs) {
@@ -776,11 +880,14 @@
         }
 
         function loadData() {
+            // 先立刻顯示內建示範資料，讓畫面馬上可用；真實來源在背景讀取，讀到就替換。
+            applyCsv(SAMPLE_CSV_TEXT, '內建示範資料', true);
+            setStatus('資料來源：內建示範資料（非實際牌價）｜背景讀取 Google 試算表中…', '#dc2626');
+
             const chain = [
-                { url: CSV_URL, label: 'Google 試算表', demo: false, timeout: 6000 },
+                { url: CSV_URL, label: 'Google 試算表', demo: false, timeout: 8000 },
                 { url: LOCAL_CSV_URL, label: '本地 data.csv', demo: false, timeout: 4000 },
-                { url: SAMPLE_CSV_URL, label: 'sample-data.csv', demo: true, timeout: 4000 },
-                { text: SAMPLE_CSV_TEXT, label: '內建示範資料', demo: true }
+                { url: SAMPLE_CSV_URL, label: 'sample-data.csv', demo: true, timeout: 4000 }
             ];
 
             let i = 0;
@@ -788,17 +895,10 @@
 
             function next() {
                 if (i >= chain.length) {
-                    document.getElementById('tableBody').innerHTML =
-                        '<tr><td colspan="13" class="empty">資料讀取失敗：無法連上 Google 試算表，且找不到本地 CSV。<br>' +
-                        '請將試算表「檔案 → 下載 → CSV」後放到同目錄命名為 data.csv，或按上方「載入本機 CSV」直接選檔。</td></tr>';
-                    setStatus('載入失敗｜' + failures.join('；'), '#dc2626');
+                    setStatus('資料來源：內建示範資料（非實際牌價）｜無法讀取真實資料：' + failures.join('；'), '#dc2626');
                     return;
                 }
                 const src = chain[i++];
-                if (src.text) {
-                    applyCsv(src.text, src.label, src.demo);
-                    return;
-                }
                 tryLoad(src.url, src.timeout).then(function(text) {
                     applyCsv(text, src.label, src.demo);
                 }).catch(function(err) {
@@ -838,8 +938,9 @@
             });
 
             const tbody = document.getElementById('tableBody');
+            const colspan = hasCategory ? 13 : 12;
             if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="13" class="empty">無符合條件的藥品</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="' + colspan + '" class="empty">無符合條件的藥品</td></tr>';
                 return;
             }
 
@@ -852,7 +953,7 @@
                     : '';
 
                 html += '<tr>' +
-                    '<td>' + escapeHtml(item.category) + '</td>' +
+                    (hasCategory ? '<td>' + escapeHtml(item.category) + '</td>' : '') +
                     '<td>' + escapeHtml(item.name) + badgeHtml + '</td>';
 
                 FACTORIES.forEach(function(factory) {

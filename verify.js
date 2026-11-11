@@ -216,5 +216,36 @@ api.renderTable();
 const first = els.tableBody.innerHTML.match(/class="price-num">([^<]+)</);
 check('5+1 模式 1200 → 1,000', first && first[1] === '1,000', first ? first[1] : 'none');
 
+// ---------- 11. 真實試算表表頭（多版本欄位、無分類欄） ----------
+// 忠實還原 Google 試算表匯出的表頭：廠牌名後接年份／月份，且同一廠牌多欄
+const REAL_LIKE_CSV = [
+    '品名規格,"富田\n113年5月",富田115年9月價格,富田115年11月價格(2026.11.01),"仙豐115年7月價格\n(2026/07/01)",勝昌112年12月價格,勝昌115年9月價格,順天堂112年11月價格,順天堂115年11月價格',
+    '乙字湯,,480,480,510,450,470,470,480',
+    '三黃錠1000錠,,,(暫時停產)550,,,,(暫時停產)550,',
+    '舊價品,,,,,380,,,'
+].join('\n');
+
+const realLike = api.buildData(REAL_LIKE_CSV);
+check('真實表頭：可解析出資料列', realLike.data.length === 3, 'n=' + realLike.data.length);
+check('真實表頭：無分類欄時 hasCategory=false', realLike.hasCategory === false);
+check('真實表頭：有出現的廠牌都對應到（富田/仙豐/勝昌/順天堂）',
+    !realLike.missing.includes('富田') && !realLike.missing.includes('仙豐') &&
+    !realLike.missing.includes('勝昌') && !realLike.missing.includes('順天堂'),
+    realLike.missing.join('、'));
+check('真實表頭：富田取最新欄（115年11月）',
+    realLike.data[0].prices['富田'] === 480, '' + realLike.data[0].prices['富田']);
+check('真實表頭：最新欄無價時往前找有價欄（三黃錠 順天堂=暫停產）',
+    realLike.data[1].prices['順天堂'] === '(暫時停產)550', String(realLike.data[1].prices['順天堂']));
+check('真實表頭：舊欄才有價時仍能取到（舊價品 勝昌=380）',
+    realLike.data[2].prices['勝昌'] === 380, '' + realLike.data[2].prices['勝昌']);
+
+api.applyCsv(REAL_LIKE_CSV, '真實表頭', false);
+check('真實表頭：查「乙字湯」能查到', api.searchRows('乙字湯').length === 1);
+check('真實表頭：乙字湯 富田 480', api.searchRows('乙字湯')[0].item.prices['富田'] === 480);
+check('真實表頭：查「乙」有候選', api.getSuggestions('乙').length >= 1);
+
+// 還原成示範資料，避免影響後續手動測試
+api.applyCsv(api.SAMPLE_CSV_TEXT, '內建示範資料', true);
+
 console.log('\n===== ' + pass + ' passed, ' + fail + ' failed =====');
 process.exit(fail === 0 ? 0 : 1);
