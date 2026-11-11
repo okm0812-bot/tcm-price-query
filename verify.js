@@ -367,6 +367,23 @@ check('複製：名稱以全角空格補齊欄寬（富田 → 3 字寬）',
     fakeLines[1].indexOf('富田\u3000') === 0, fakeLines[1]);
 check('複製：數字與文字值都保留', fakeLines[1].indexOf('1000') !== -1 && fakeLines[1].indexOf('時價') !== -1, fakeLines[1]);
 
+// 3 位數與 4 位數價格要對齊同一條右邊界（LINE 比例字型下 1 空格 ≈ 半個數字寬）
+const visWidth = function(s) {
+    let u = 0;
+    s.split('').forEach(function(c) {
+        if (c === ' ') u += 0.5;
+        else if (/[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]/.test(c)) u += 1.8;
+        else u += 1;
+    });
+    return u;
+};
+const alignItem = { category: '複方', name: '對齊測試', prices: { '富田': 600, '仙豐': 1150, '勝昌': 540 } };
+const alignLine = api.rowsToText([{ item: alignItem }]).split('\n')[1];
+const alignPrices = alignLine.split('\u3000').filter(function(p) { return /^\s*\d/.test(p); });
+check('複製：3 位數與 4 位數價格右邊界對齊',
+    alignPrices.length === 2 && visWidth(alignPrices[0]) === visWidth(alignPrices[1]),
+    alignPrices.map(visWidth).join('/') + ' ｜ ' + JSON.stringify(alignPrices));
+
 api.setState('5+1', 10);
 check('複製：5+1 模式套用買贈換算（1000 → 833）',
     api.rowsToText([{ item: fakeItem }]).indexOf('833') !== -1,

@@ -1506,7 +1506,7 @@
         // ===== 複製查詢結果（LINE 好讀的區塊格式：每家廠牌並排對齊）=====
         const CELL_PER_LINE = 2;   // 每行放幾家廠牌（手機 LINE 寬度不會折行）
         const NAME_WIDTH = 3;      // 廠牌名稱欄寬（以全角字為單位）
-        const PRICE_WIDTH = 4;     // 價格欄寬（右靠，數字位數不同也能對齊）
+        const PRICE_WIDTH = 4;     // 價格欄寬（以半形字元為單位，右靠後各列右邊界一致）
 
         function modeLabel(factory) {
             const mode = (factory && factoryModes[factory]) ? factoryModes[factory] : defaultMode;
@@ -1531,10 +1531,20 @@
             return s;
         }
 
-        // 價格右靠到固定寬度，3 位數與 4 位數（或「時價」）都能左右對齊
+        // 價格右靠到固定寬度。LINE 等比例字型裡「一個空格約半個數字寬」，
+        // 所以每缺 1 個字元補 2 個半形空格，3 位數與 4 位數才會對齊同一條右邊界。
+        // 「時價」「停售」這類全形文字＝2 個半形寬，不補。
+        function displayUnits(s) {
+            let u = 0;
+            String(s).split('').forEach(function(ch) {
+                u += /[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]/.test(ch) ? 2 : 1;
+            });
+            return u;
+        }
         function padPrice(v) {
             let s = String(v);
-            while (s.length < PRICE_WIDTH) s = ' ' + s;
+            const miss = PRICE_WIDTH - displayUnits(s);
+            if (miss > 0) s = '  '.repeat(miss) + s;
             return s;
         }
 
