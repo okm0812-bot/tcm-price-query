@@ -148,15 +148,49 @@
         .load-btn:hover { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }
         .copy-btn {
             padding: 10px 14px;
-            border: 1px solid #3b82f6;
+            border: 1px solid #93c5fd;
             border-radius: 6px;
-            background: #3b82f6;
-            color: #fff;
+            background: #fff;
+            color: #2563eb;
             font-size: 15px;
             cursor: pointer;
         }
-        .copy-btn:hover { background: #2563eb; border-color: #2563eb; }
-        .copy-btn:disabled { background: #cbd5e1; border-color: #cbd5e1; cursor: not-allowed; }
+        .copy-btn:hover { background: #eff6ff; border-color: #2563eb; color: #1d4ed8; }
+        .copy-btn:disabled { background: #f1f5f9; border-color: #cbd5e1; color: #94a3b8; cursor: not-allowed; }
+        .search-btn {
+            padding: 10px 18px;
+            border: 1px solid #2563eb;
+            border-radius: 6px;
+            background: #2563eb;
+            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .search-btn:hover { background: #1d4ed8; border-color: #1d4ed8; }
+        .chips { display: none; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 8px 5px 12px;
+            border: 1px solid #bfdbfe;
+            border-radius: 999px;
+            background: #eff6ff;
+            color: #1e3a8a;
+            font-size: 13px;
+        }
+        .chip-cat { color: #3b82f6; font-size: 12px; }
+        .chip-x {
+            border: none;
+            background: transparent;
+            color: #60a5fa;
+            font-size: 16px;
+            line-height: 1;
+            cursor: pointer;
+            padding: 0 4px;
+        }
+        .chip-x:hover { color: #1d4ed8; }
         .match-hint {
             display: none;
             margin-bottom: 10px;
@@ -219,6 +253,7 @@
         .badge-exact { background: #dcfce7; color: #15803d; }
         .badge-strong { background: #dbeafe; color: #1d4ed8; }
         .badge-weak { background: #fef3c7; color: #b45309; }
+        .badge-pick { background: #e2e8f0; color: #475569; }
         .updated-note {
             margin-top: 12px;
             font-size: 12px;
@@ -268,7 +303,7 @@
 
         <div class="control-panel">
             <div class="search-wrap">
-                <textarea id="searchInput" rows="2" placeholder="輸入藥品名稱查詢，可一次輸入多筆：每行一筆，或用逗號、頓號分隔。按 Enter 選取候選品項。" autocomplete="off" spellcheck="false"></textarea>
+                <textarea id="searchInput" rows="2" placeholder="輸入藥名 → 點選候選 → 按「查詢」" autocomplete="off" spellcheck="false"></textarea>
                 <div class="suggest-list" id="suggestList"></div>
             </div>
 
@@ -292,6 +327,8 @@
                 <button class="mode-btn" data-mode="10+1">10+1</button>
             </div>
 
+            <button class="search-btn" id="searchBtn">查詢</button>
+
             <button class="copy-btn" id="copyBtn">複製查詢結果</button>
 
             <div class="gift-tools">
@@ -301,6 +338,8 @@
                 <button class="gift-link" id="giftNoneBtn">全取消</button>
             </div>
         </div>
+
+        <div class="chips" id="selectedChips"></div>
 
         <div class="match-hint" id="matchHint"></div>
 
@@ -322,9 +361,10 @@
         <div class="footer-note">
             ※ 5+1 = 買5送1（單價 = 原價 × 5/6）；10+1 = 買10送1（單價 = 原價 × 10/11）；可與折扣疊加計算<br>
             ※ 價格來源：Google 試算表，空白表示該廠無此品項或未列價<br>
-            ※ 搜尋採「完全符合 → 開頭 → 包含 → 含於品名 → 相似」分層評分，模糊命中會標示提醒，短查詢命中多筆時不自動挑選<br>
-            ※ 可一次輸入多筆藥品（每行一筆，或用逗號、頓號、分號分隔），逐筆比對後合併列出，查無的品項會列在提示列<br>
-            ※ 輸入時下方會出現候選品項：用 ↑↓ 選取後按 Enter 套用；直接按 Enter 則是換行（繼續輸入下一筆）
+            ※ 搜尋採「完全符合 → 開頭 → 包含 → 含於品名 → 相似」分層評分，模糊命中會標示提醒<br>
+            ※ 查詢方式：輸入藥名 → 從候選清單點選要查的品項（可一次多筆，每行一筆或用逗號、頓號分隔）→ 按「查詢」才列出結果<br>
+            ※ 點選的品項會列在上方標籤，按 × 可移除；只打一筆且唯一命中時會自動帶入，多筆並列則不猜、請自行點選<br>
+            ※ 候選品項可用 ↑↓ 選取後按 Enter 加入；直接按 Enter 則是換行（繼續輸入下一筆）
         </div>
         <div class="status-note" id="statusNote"></div>
     </div>
@@ -383,6 +423,9 @@
         let allData = [];
         let hasCategory = true;
         let lastRows = []; // 目前畫面上（已套用查詢與分類篩選）的品項，匯出時用同一份
+        let selectedItems = []; // 使用者從候選清單點選的品項（查詢清單）
+        let queryRows = null;   // 上次按「查詢」的結果；null 表示還沒查過
+        let queryState = { notFound: [], ambiguous: [] };
         let currentMode = 'origin'; // origin, 5+1, 10+1
         let discount = 10; // 預設10折（無折扣）
         // 哪些廠商有買贈（只有勾選的廠商才套用 5+1／10+1，預設全選）
@@ -898,6 +941,11 @@
         function commitData(items, updated, missing, sourceLabel, isDemo, withCategory) {
             allData = items;
             hasCategory = !!withCategory;
+            // 資料換了一份，舊的查詢清單與結果都失效
+            selectedItems = [];
+            queryRows = null;
+            queryState = { notFound: [], ambiguous: [] };
+            renderChips();
             buildSearchIndex();
 
             // 來源沒有分類欄時，把分類欄位與分類篩選收起來（避免出現空欄與無效控制項）
@@ -1116,77 +1164,42 @@
             });
         }
 
+        // 只渲染「按查詢」之後的結果；打字階段不再即時列出大量品項
+        // 折扣、分類、買贈模式變動時也走這裡，用同一份查詢結果重算
         function renderTable() {
-            const rawQuery = document.getElementById('searchInput').value.trim();
             const category = document.getElementById('categorySelect').value;
-
-            const tokens = splitQueryTokens(rawQuery);
             const tbody = document.getElementById('tableBody');
             const colspan = hasCategory ? 13 : 12;
 
-            // 尚未輸入：首頁不列出全部品項，只顯示提示
-            if (tokens.length === 0) {
+            if (queryRows === null) {
                 lastRows = [];
                 tbody.innerHTML = '<tr><td colspan="' + colspan + '" class="empty">' +
-                    (allData.length ? '請輸入藥品名稱查詢（可一次輸入多筆，用換行、逗號或頓號分隔）' : '資料載入中…') +
+                    (allData.length
+                        ? '輸入藥名 → 從候選清單點選品項 → 按「查詢」列出結果（可一次多筆）'
+                        : '資料載入中…') +
                     '</td></tr>';
                 setHint('');
                 return;
             }
 
-            // 逐筆查詢後合併：同一品項只留一列，取最高分
-            const merged = [];
-            const indexByKey = {};
-            const notFound = [];
-
-            tokens.forEach(function(token) {
-                const hits = searchRows(token);
-                const exactHits = hits.length > 0 ? hits : [];
-                if (exactHits.length === 0) notFound.push(token);
-
-                hits.forEach(function(r) {
-                    // 同名但分類不同（例如複方與丸劑都有「六味地黃丸」）要各自成一列
-                    const key = r.item.name + '｜' + (r.item.category || '');
-                    if (indexByKey[key] === undefined) {
-                        indexByKey[key] = merged.length;
-                        merged.push({ item: r.item, score: r.score, tokens: [token], fuzzy: r.score < 8000 });
-                    } else {
-                        const m = merged[indexByKey[key]];
-                        if (r.score > m.score) m.score = r.score;
-                        if (m.tokens.indexOf(token) === -1) m.tokens.push(token);
-                        if (r.score < 8000) m.fuzzy = true;
-                    }
-                });
-            });
-
-            merged.sort(function(a, b) { return b.score - a.score; });
-
-            // 提示列
-            if (tokens.length > 1) {
-                let msg = '共 ' + tokens.length + ' 筆查詢、命中 ' + merged.length + ' 筆品項';
-                if (notFound.length > 0) msg += '｜查無：' + notFound.slice(0, 5).join('、') + (notFound.length > 5 ? '…' : '');
-                setHint(msg);
-            } else {
-                const q = normalizeSearchText(tokens[0]);
-                if (merged.length > 1 && q.length <= 2) {
-                    setHint('「' + tokens[0] + '」符合 ' + merged.length + ' 筆不同品項，未自動挑選。請補齊藥名（例如加上「湯」「散」「丸」）以縮小範圍。');
-                } else if (merged.length >= 1 && merged[0].score < 8000) {
-                    const names = merged.slice(0, 3).map(function(r) { return r.item.name; }).join('、');
-                    setHint('「' + tokens[0] + '」查無精確符合，以下為相似品項：' + names + '（請確認後再採用）');
-                } else {
-                    setHint('');
-                }
-            }
-
-            const filtered = merged.filter(function(r) {
+            const filtered = queryRows.filter(function(r) {
                 return category === 'all' || r.item.category === category;
             });
 
             if (filtered.length === 0) {
                 lastRows = [];
-                tbody.innerHTML = '<tr><td colspan="' + colspan + '" class="empty">' +
-                    (notFound.length > 0 && tokens.length > 0 ? '查無「' + escapeHtml(notFound.join('、')) + '」' : '無符合條件的藥品') +
-                    '</td></tr>';
+                let msg;
+                if (queryState.notFound.length > 0) {
+                    msg = '查無「' + escapeHtml(queryState.notFound.join('、')) + '」';
+                } else if (queryState.ambiguous.length > 0) {
+                    const a = queryState.ambiguous[0];
+                    msg = '請從候選清單點選要查的品項（「' + escapeHtml(a.token) + '」有 ' + a.count + ' 筆符合）';
+                } else if (queryRows.length === 0) {
+                    msg = '輸入藥名 → 從候選清單點選品項 → 按「查詢」列出結果（可一次多筆）';
+                } else {
+                    msg = '目前分類下沒有符合的品項';
+                }
+                tbody.innerHTML = '<tr><td colspan="' + colspan + '" class="empty">' + msg + '</td></tr>';
                 return;
             }
 
@@ -1194,7 +1207,9 @@
             lastRows = filtered;
             filtered.forEach(function(r) {
                 const item = r.item;
-                const badge = (r.score !== null) ? matchBadge(r.score) : null;
+                const badge = r.picked
+                    ? { label: '已選取', cls: 'badge-pick' }
+                    : matchBadge(r.score);
                 const badgeHtml = badge
                     ? '<span class="badge ' + badge.cls + '">' + badge.label + '</span>'
                     : '';
@@ -1394,15 +1409,17 @@
             const row = suggestRows[idx];
             if (!row) return;
             const input = document.getElementById('searchInput');
-            // 只替換最後一段查詢，保留前面已輸入的其他品項
+            // 點選候選＝把這個品項加進查詢清單，並清掉剛打的那一段文字
             const info = lastTokenInfo(input.value);
-            input.value = info.prefix + row.item.name;
+            addSelected(row.item);
+            input.value = info.prefix.replace(/[\s,，、;；]+$/u, '');
             hideSuggest();
-            renderTable();
+            setHint('已加入「' + row.item.name + (row.item.category ? '（' + row.item.category + '）' : '') +
+                '」到查詢清單，可繼續輸入其他藥名，完成後按「查詢」');
         }
 
         function pickActiveSuggestion() {
-            // 只有在使用者用 ↑↓ 主動選取時，Enter 才會取代輸入內容；
+            // 只有在使用者用 ↑↓ 主動選取時，Enter 才會選取候選；
             // 否則 Enter 保留原本的換行行為（多筆輸入靠換行分段）
             if (suggestNavigated && suggestIndex >= 0 && suggestRows.length) {
                 pickSuggestion(suggestIndex);
@@ -1411,12 +1428,143 @@
             return false;
         }
 
+        // ===== 查詢清單（chips）與「查詢」按鈕 =====
+        function itemKeyOf(item) {
+            return item.name + '｜' + (item.category || '');
+        }
+
+        function findItem(name, category) {
+            for (let i = 0; i < allData.length; i++) {
+                const it = allData[i];
+                if (it.name === name && (!category || it.category === category)) return it;
+            }
+            return null;
+        }
+
+        function renderChips() {
+            const el = document.getElementById('selectedChips');
+            if (!el) return;
+            if (selectedItems.length === 0) {
+                el.style.display = 'none';
+                el.innerHTML = '';
+                return;
+            }
+            el.style.display = 'flex';
+            let html = '';
+            selectedItems.forEach(function(it, i) {
+                html += '<span class="chip">' +
+                    escapeHtml(it.name) +
+                    (it.category ? '<span class="chip-cat">' + escapeHtml(it.category) + '</span>' : '') +
+                    '<button class="chip-x" data-idx="' + i + '" title="從查詢清單移除">×</button>' +
+                    '</span>';
+            });
+            el.innerHTML = html;
+        }
+
+        function addSelected(item) {
+            if (!item) return false;
+            const key = itemKeyOf(item);
+            const exists = selectedItems.some(function(it) { return itemKeyOf(it) === key; });
+            if (exists) return false;
+            selectedItems.push(item);
+            renderChips();
+            return true;
+        }
+
+        function addSelectedByName(name, category) {
+            const it = findItem(name, category);
+            if (!it) return false;
+            return addSelected(it);
+        }
+
+        function removeSelected(idx) {
+            if (idx < 0 || idx >= selectedItems.length) return;
+            selectedItems.splice(idx, 1);
+            renderChips();
+            if (queryRows !== null) runQuery(); // 已經查過就即時更新結果
+        }
+
+        function clearSelected() {
+            selectedItems = [];
+            queryRows = null;   // 清空清單也代表這次查詢結束，回到未查詢狀態
+            queryState = { notFound: [], ambiguous: [] };
+            renderChips();
+        }
+
+        // 這段文字是否已經被清單裡的品項涵蓋（避免同一筆重複查）
+        function isTokenCovered(token) {
+            const q = normalizeSearchText(token);
+            return selectedItems.some(function(it) {
+                return normalizeSearchText(it.name) === q || normalizeSearchText(it.core) === q;
+            });
+        }
+
+        // 按「查詢」：只輸出「已點選的品項」；文字輸入中唯一命中的自動帶入，
+        // 多筆並列時不猜，改成提示使用者從候選清單點選
+        function runQuery() {
+            hideSuggest();
+            const input = document.getElementById('searchInput');
+            const tokens = splitQueryTokens(input.value);
+            const notFound = [];
+            const ambiguous = [];
+            const scoreByKey = {};
+            const autoKeys = {}; // 由文字自動帶入的品項（其餘都是使用者親自點選）
+
+            selectedItems.forEach(function(it) { scoreByKey[itemKeyOf(it)] = 10000; });
+
+            tokens.forEach(function(token) {
+                if (isTokenCovered(token)) return;
+                const hits = searchRows(token);
+                if (!hits.length) { notFound.push(token); return; }
+
+                const best = hits[0].score;
+                const top = hits.filter(function(h) { return h.score === best; });
+                if (top.length === 1) {
+                    addSelected(top[0].item);
+                    const key = itemKeyOf(top[0].item);
+                    scoreByKey[key] = Math.max(scoreByKey[key] || 0, best);
+                    autoKeys[key] = true;
+                } else {
+                    ambiguous.push({ token: token, count: top.length });
+                }
+            });
+
+            queryRows = selectedItems.map(function(it) {
+                const key = itemKeyOf(it);
+                const score = scoreByKey[key];
+                return { item: it, score: score === undefined ? 10000 : score, picked: !autoKeys[key] };
+            });
+            queryState = { notFound: notFound, ambiguous: ambiguous };
+
+            // 已自動帶入的文字從輸入框移除；還沒選的（多筆符合、查無）留在框裡讓使用者處理
+            input.value = ambiguous.map(function(a) { return a.token; }).join('\n');
+
+            renderChips();
+            renderTable();
+
+            const parts = [];
+            if (queryRows.length > 0) parts.push('已列出 ' + queryRows.length + ' 筆品項');
+            if (ambiguous.length > 0) {
+                parts.push('待選取：' + ambiguous.slice(0, 3).map(function(a) {
+                    return '「' + a.token + '」有 ' + a.count + ' 筆符合';
+                }).join('、') + '（請從候選清單點選要查的品項）');
+            }
+            if (notFound.length > 0) {
+                parts.push('查無：' + notFound.slice(0, 5).join('、') + (notFound.length > 5 ? '…' : ''));
+            }
+            if (queryRows.length === 0 && ambiguous.length === 0 && notFound.length === 0) {
+                parts.push('請先輸入藥名並點選候選品項');
+            }
+            setHint(parts.join('｜'));
+        }
+
         // ===== 事件監聽 =====
         const searchInput = document.getElementById('searchInput');
 
         searchInput.addEventListener('input', function() {
+            // 打字階段只更新候選清單，不即時列出結果；結果等使用者按「查詢」
             renderSuggestions();
-            renderTable();
+            if (queryRows !== null) setHint('輸入內容已變更，按「查詢」更新結果');
         });
 
         searchInput.addEventListener('keydown', function(e) {
@@ -1494,6 +1642,18 @@
             buildHeadRow();
             renderTable();
             setHint('已取消全部廠商的搭贈（只套用折扣）');
+        });
+
+        // 點 chips 上的 × 可把品項從查詢清單移除
+        document.getElementById('selectedChips').addEventListener('click', function(e) {
+            const x = e.target.closest ? e.target.closest('.chip-x') : null;
+            if (!x) return;
+            e.preventDefault();
+            removeSelected(parseInt(x.dataset.idx, 10));
+        });
+
+        document.getElementById('searchBtn').addEventListener('click', function() {
+            runQuery();
         });
 
         document.getElementById('copyBtn').addEventListener('click', copyResults);

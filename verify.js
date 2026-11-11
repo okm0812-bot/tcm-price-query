@@ -46,7 +46,10 @@ const api = new Function(
     'normalizeSearchText, splitNameSpec, searchRows, buildSearchIndex, matchBadge, ' +
     'scoreExactTier, scoreFuzzyTier, editSimilarity, levenshteinDistance, uniqueCharMatchScore, SAMPLE_CSV_TEXT, ' +
     'getSuggestions, escapeHtml, splitQueryTokens, lastTokenInfo, rowsToText, modeLabel, ' +
-    'mergeSheets, SHEETS, commitData, ' +
+    'mergeSheets, SHEETS, commitData, runQuery, addSelected, addSelectedByName, removeSelected, ' +
+    'clearSelected, renderChips, findItem, ' +
+    'getQueryRows: function() { return queryRows; }, ' +
+    'getSelected: function() { return selectedItems.slice(); }, ' +
     'setGift: function(f, on) { giftFactories[f] = on; }, ' +
     'setState: function(m, d){ currentMode = m; discount = d; ' +
     'FACTORIES.forEach(function(f){ giftFactories[f] = true; }); } };'
@@ -164,29 +167,62 @@ check('1000 打6折 + 5+1 → 500', api.calcPrice(1000) === 500, '' + api.calcPr
 check('文字值不參與運算', api.calcPrice('時價') === '時價');
 check('null 不參與運算', api.calcPrice(null) === null);
 
-// ---------- 10. 渲染與提示 ----------
+// ---------- 10. 查詢流程（先點選候選，再按查詢） ----------
 api.setState('origin', 10);
-els.searchInput.value = '桂枝';
+api.clearSelected();
+els.searchInput.value = '';
 api.renderTable();
-check('渲染：搜「桂枝」只留 1 列', (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 1,
+check('尚未查詢：不列出全部品項，只給操作提示',
+    (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 1 &&
+    els.tableBody.innerHTML.indexOf('按「查詢」列出結果') !== -1, els.tableBody.innerHTML.slice(0, 120));
+
+api.addSelectedByName('桂枝湯 200g', '複方');
+api.runQuery();
+check('點選候選後查詢：列出 1 筆', (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 1,
     'rows=' + (els.tableBody.innerHTML.match(/<tr>/g) || []).length);
-check('渲染：千分位 1,200', els.tableBody.innerHTML.indexOf('1,200') !== -1);
-check('渲染：符合度標籤出現', els.tableBody.innerHTML.indexOf('badge') !== -1);
+check('查詢結果：千分位 1,200', els.tableBody.innerHTML.indexOf('1,200') !== -1);
+check('查詢結果：人工點選的品項標「已選取」', els.tableBody.innerHTML.indexOf('已選取') !== -1);
+check('查詢清單：點選的品項留在清單中', api.getSelected().length === 1, 'n=' + api.getSelected().length);
+check('查詢清單：重複點選不會重複加入',
+    api.addSelectedByName('桂枝湯 200g', '複方') === false && api.getSelected().length === 1,
+    'n=' + api.getSelected().length);
 
+api.clearSelected();
+api.addSelectedByName('桂枝湯 200g', '複方');
+api.addSelectedByName('炙甘草湯 200g', '複方');
+api.runQuery();
+check('多筆：兩筆品項各自成一列', (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 2,
+    'rows=' + (els.tableBody.innerHTML.match(/<tr>/g) || []).length);
+check('多筆：提示列說明列出筆數', els.matchHint.style.display === 'block' &&
+    els.matchHint.textContent.indexOf('已列出 2 筆品項') !== -1, String(els.matchHint.textContent));
+
+api.removeSelected(0);
+check('移除查詢清單品項後結果同步減少',
+    api.getQueryRows().length === 1 && (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 1,
+    'n=' + api.getQueryRows().length);
+
+// 只打字沒點選：唯一命中才自動帶入，多筆並列不猜
+api.clearSelected();
 els.searchInput.value = '炙甘草';
-api.renderTable();
-check('渲染：多筆時列出 2 列且顯示標籤', (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 2 &&
-    els.tableBody.innerHTML.indexOf('完全符合') !== -1 && els.tableBody.innerHTML.indexOf('開頭符合') !== -1);
+api.runQuery();
+check('唯一命中：「炙甘草」自動帶入 1 筆', api.getQueryRows().length === 1 && api.getQueryRows()[0].item.name === '炙甘草 100g',
+    api.getQueryRows().map(function (r) { return r.item.name; }).join('、'));
+check('唯一命中：自動帶入後輸入框清空', els.searchInput.value === '', JSON.stringify(els.searchInput.value));
 
+api.clearSelected();
 els.searchInput.value = '地黃';
-api.renderTable();
-check('短查詢多筆 → 顯示不自動挑選提示', els.matchHint.style.display === 'block' && els.matchHint.textContent.indexOf('未自動挑選') !== -1,
+api.runQuery();
+check('多筆符合：不自動挑選、不列出結果', api.getQueryRows().length === 0, 'n=' + api.getQueryRows().length);
+check('多筆符合：提示請從候選清單點選',
+    els.matchHint.style.display === 'block' && els.matchHint.textContent.indexOf('待選取') !== -1,
     String(els.matchHint.textContent));
+check('多筆符合：未選的文字留在輸入框', els.searchInput.value === '地黃', JSON.stringify(els.searchInput.value));
 
-els.searchInput.value = '六味地黃凡';
+// 打字階段不會即時重算結果
+els.searchInput.value = '不存在的藥';
 api.renderTable();
-check('低信心單筆 → 顯示相似品項提示', els.matchHint.style.display === 'block' && els.matchHint.textContent.indexOf('查無精確符合') !== -1,
-    String(els.matchHint.textContent));
+check('打字不即時查詢：結果仍是上一次查詢', api.getQueryRows().length === 0 && els.tableBody.innerHTML.indexOf('查無') === -1,
+    els.tableBody.innerHTML.slice(0, 80));
 
 // 內建示範資料（發布成線上網頁、相對路徑 CSV 不存在時的最後備援）
 const inline = api.buildData(api.SAMPLE_CSV_TEXT);
@@ -211,14 +247,15 @@ check('HTML 轉義：< > & 正確處理',
 
 els.searchInput.value = '';
 els.categorySelect.value = '錠劑';
+api.clearSelected();
 api.renderTable();
-check('無輸入時不列出全部品項（只留提示列）',
+check('未查詢時即使有分類篩選也只顯示提示列',
     (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 1 &&
-    els.tableBody.innerHTML.indexOf('請輸入藥品名稱查詢') !== -1, els.tableBody.innerHTML.slice(0, 120));
+    els.tableBody.innerHTML.indexOf('按「查詢」列出結果') !== -1, els.tableBody.innerHTML.slice(0, 120));
 
 els.categorySelect.value = 'all';
 els.searchInput.value = '不存在的藥';
-api.renderTable();
+api.runQuery();
 check('查無資料提示', els.tableBody.innerHTML.indexOf('查無「不存在的藥」') !== -1, els.tableBody.innerHTML.slice(0, 120));
 
 // ---------- 多筆輸入 ----------
@@ -235,26 +272,43 @@ check('多筆：lastTokenInfo 取出最後一段',
     JSON.stringify(api.lastTokenInfo('桂枝湯、炙甘')));
 
 els.searchInput.value = '桂枝湯\n炙甘草';
-api.renderTable();
-check('多筆：兩筆查詢合併列出（不重複、共 3 列）',
-    (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 3,
+api.clearSelected();
+api.runQuery();
+check('多筆：兩段輸入各自唯一命中，合計 2 列',
+    (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 2,
     'rows=' + (els.tableBody.innerHTML.match(/<tr>/g) || []).length);
-check('多筆：提示列說明命中筆數', els.matchHint.style.display === 'block' &&
-    els.matchHint.textContent.indexOf('共 2 筆查詢') !== -1, String(els.matchHint.textContent));
+check('多筆：提示列說明列出筆數', els.matchHint.style.display === 'block' &&
+    els.matchHint.textContent.indexOf('已列出 2 筆品項') !== -1, String(els.matchHint.textContent));
 
 els.searchInput.value = '桂枝湯\n不存在的藥';
-api.renderTable();
+api.clearSelected();
+api.runQuery();
 check('多筆：查無的品項列在提示列', els.matchHint.textContent.indexOf('查無：不存在的藥') !== -1,
     String(els.matchHint.textContent));
 
 els.searchInput.value = '完全查無一\n完全查無二';
-api.renderTable();
+api.clearSelected();
+api.runQuery();
 check('多筆：全部查無時表格顯示查無訊息',
     els.tableBody.innerHTML.indexOf('查無「完全查無一、完全查無二」') !== -1, els.tableBody.innerHTML.slice(0, 120));
 
-els.searchInput.value = '桂枝';
-api.setState('5+1', 10);
+els.searchInput.value = '';
+api.clearSelected();
+api.addSelectedByName('桂枝湯 200g', '複方');
+api.addSelectedByName('六味地黃丸 200g', '複方');
+api.addSelectedByName('六味地黃丸 丸劑 500g', '丸劑');
+api.runQuery();
+check('分類篩選：全部分類時 3 列', (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 3);
+els.categorySelect.value = '丸劑';
 api.renderTable();
+check('分類篩選：切丸劑後只剩 1 列且結果保留',
+    (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 1 && api.getQueryRows().length === 3);
+els.categorySelect.value = 'all';
+
+api.clearSelected();
+api.addSelectedByName('桂枝湯 200g', '複方');
+api.setState('5+1', 10);
+api.runQuery();
 const first = els.tableBody.innerHTML.match(/class="price-num">([^<]+)</);
 check('5+1 模式 1200 → 1,000', first && first[1] === '1,000', first ? first[1] : 'none');
 
