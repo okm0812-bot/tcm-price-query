@@ -20,12 +20,13 @@ function makeEl(id) {
         appendChild() {}, removeChild() {},
         setAttribute() {}, getAttribute() { return null; },
         querySelector() { return null; },
+        querySelectorAll() { return []; },
         addEventListener() {},
         click() {}
     };
 }
 const els = {};
-['searchInput', 'categorySelect', 'discountInput', 'tableBody', 'statusNote', 'matchHint', 'pickCsvBtn', 'csvFileInput']
+['searchInput', 'categorySelect', 'discountInput', 'resultList', 'giftGrid', 'statusNote', 'matchHint', 'pickCsvBtn', 'csvFileInput', 'selectedChips', 'suggestList', 'searchBtn', 'copyBtn', 'updatedNote']
     .forEach(function (id) { els[id] = makeEl(id); });
 els.searchInput.value = '';
 els.categorySelect.value = 'all';
@@ -33,6 +34,7 @@ els.discountInput.value = '10';
 
 const documentStub = {
     getElementById: function (id) { return els[id] || makeEl(id); },
+    querySelector: function () { return null; },
     querySelectorAll: function () { return []; },
     createElement: function (tag) { return makeEl('new-' + tag); }
 };
@@ -50,9 +52,10 @@ const api = new Function(
     'clearSelected, renderChips, findItem, ' +
     'getQueryRows: function() { return queryRows; }, ' +
     'getSelected: function() { return selectedItems.slice(); }, ' +
-    'setGift: function(f, on) { giftFactories[f] = on; }, ' +
-    'setState: function(m, d){ currentMode = m; discount = d; ' +
-    'FACTORIES.forEach(function(f){ giftFactories[f] = true; }); } };'
+    'getModes: function() { return JSON.parse(JSON.stringify(factoryModes)); }, ' +
+    'setFactoryMode: setFactoryMode, ' +
+    'setState: function(m, d){ defaultMode = m; discount = d; ' +
+    'FACTORIES.forEach(function(f){ factoryModes[f] = m; }); } };'
 )(documentStub, fetchStub, AbortController, setTimeout, clearTimeout, function () {});
 
 let pass = 0, fail = 0;
@@ -173,15 +176,16 @@ api.clearSelected();
 els.searchInput.value = '';
 api.renderTable();
 check('尚未查詢：不列出全部品項，只給操作提示',
-    (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 1 &&
-    els.tableBody.innerHTML.indexOf('按「查詢」列出結果') !== -1, els.tableBody.innerHTML.slice(0, 120));
+    (els.resultList.innerHTML.match(/class="item-card"/g) || []).length === 0 &&
+    (els.resultList.innerHTML.match(/class="result-empty"/g) || []).length === 1 &&
+    els.resultList.innerHTML.indexOf('按「查詢」列出結果') !== -1, els.resultList.innerHTML.slice(0, 120));
 
 api.addSelectedByName('桂枝湯 200g', '複方');
 api.runQuery();
-check('點選候選後查詢：列出 1 筆', (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 1,
-    'rows=' + (els.tableBody.innerHTML.match(/<tr>/g) || []).length);
-check('查詢結果：千分位 1,200', els.tableBody.innerHTML.indexOf('1,200') !== -1);
-check('查詢結果：人工點選的品項標「已選取」', els.tableBody.innerHTML.indexOf('已選取') !== -1);
+check('點選候選後查詢：列出 1 筆', (els.resultList.innerHTML.match(/class="item-card"/g) || []).length === 1,
+    'rows=' + (els.resultList.innerHTML.match(/class="item-card"/g) || []).length);
+check('查詢結果：千分位 1,200', els.resultList.innerHTML.indexOf('1,200') !== -1);
+check('查詢結果：人工點選的品項標「已選取」', els.resultList.innerHTML.indexOf('已選取') !== -1);
 check('查詢清單：點選的品項留在清單中', api.getSelected().length === 1, 'n=' + api.getSelected().length);
 check('查詢清單：重複點選不會重複加入',
     api.addSelectedByName('桂枝湯 200g', '複方') === false && api.getSelected().length === 1,
@@ -191,14 +195,14 @@ api.clearSelected();
 api.addSelectedByName('桂枝湯 200g', '複方');
 api.addSelectedByName('炙甘草湯 200g', '複方');
 api.runQuery();
-check('多筆：兩筆品項各自成一列', (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 2,
-    'rows=' + (els.tableBody.innerHTML.match(/<tr>/g) || []).length);
+check('多筆：兩筆品項各自成一列', (els.resultList.innerHTML.match(/class="item-card"/g) || []).length === 2,
+    'rows=' + (els.resultList.innerHTML.match(/class="item-card"/g) || []).length);
 check('多筆：提示列說明列出筆數', els.matchHint.style.display === 'block' &&
     els.matchHint.textContent.indexOf('已列出 2 筆品項') !== -1, String(els.matchHint.textContent));
 
 api.removeSelected(0);
 check('移除查詢清單品項後結果同步減少',
-    api.getQueryRows().length === 1 && (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 1,
+    api.getQueryRows().length === 1 && (els.resultList.innerHTML.match(/class="item-card"/g) || []).length === 1,
     'n=' + api.getQueryRows().length);
 
 // 只打字沒點選：唯一命中才自動帶入，多筆並列不猜
@@ -221,8 +225,8 @@ check('多筆符合：未選的文字留在輸入框', els.searchInput.value ===
 // 打字階段不會即時重算結果
 els.searchInput.value = '不存在的藥';
 api.renderTable();
-check('打字不即時查詢：結果仍是上一次查詢', api.getQueryRows().length === 0 && els.tableBody.innerHTML.indexOf('查無') === -1,
-    els.tableBody.innerHTML.slice(0, 80));
+check('打字不即時查詢：結果仍是上一次查詢', api.getQueryRows().length === 0 && els.resultList.innerHTML.indexOf('查無') === -1,
+    els.resultList.innerHTML.slice(0, 80));
 
 // 內建示範資料（發布成線上網頁、相對路徑 CSV 不存在時的最後備援）
 const inline = api.buildData(api.SAMPLE_CSV_TEXT);
@@ -250,13 +254,14 @@ els.categorySelect.value = '錠劑';
 api.clearSelected();
 api.renderTable();
 check('未查詢時即使有分類篩選也只顯示提示列',
-    (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 1 &&
-    els.tableBody.innerHTML.indexOf('按「查詢」列出結果') !== -1, els.tableBody.innerHTML.slice(0, 120));
+    (els.resultList.innerHTML.match(/class="item-card"/g) || []).length === 0 &&
+    (els.resultList.innerHTML.match(/class="result-empty"/g) || []).length === 1 &&
+    els.resultList.innerHTML.indexOf('按「查詢」列出結果') !== -1, els.resultList.innerHTML.slice(0, 120));
 
 els.categorySelect.value = 'all';
 els.searchInput.value = '不存在的藥';
 api.runQuery();
-check('查無資料提示', els.tableBody.innerHTML.indexOf('查無「不存在的藥」') !== -1, els.tableBody.innerHTML.slice(0, 120));
+check('查無資料提示', els.resultList.innerHTML.indexOf('查無「不存在的藥」') !== -1, els.resultList.innerHTML.slice(0, 120));
 
 // ---------- 多筆輸入 ----------
 check('多筆：換行分隔', api.splitQueryTokens('桂枝湯\n乙字湯').length === 2, String(api.splitQueryTokens('桂枝湯\n乙字湯').length));
@@ -275,8 +280,8 @@ els.searchInput.value = '桂枝湯\n炙甘草';
 api.clearSelected();
 api.runQuery();
 check('多筆：兩段輸入各自唯一命中，合計 2 列',
-    (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 2,
-    'rows=' + (els.tableBody.innerHTML.match(/<tr>/g) || []).length);
+    (els.resultList.innerHTML.match(/class="item-card"/g) || []).length === 2,
+    'rows=' + (els.resultList.innerHTML.match(/class="item-card"/g) || []).length);
 check('多筆：提示列說明列出筆數', els.matchHint.style.display === 'block' &&
     els.matchHint.textContent.indexOf('已列出 2 筆品項') !== -1, String(els.matchHint.textContent));
 
@@ -290,7 +295,7 @@ els.searchInput.value = '完全查無一\n完全查無二';
 api.clearSelected();
 api.runQuery();
 check('多筆：全部查無時表格顯示查無訊息',
-    els.tableBody.innerHTML.indexOf('查無「完全查無一、完全查無二」') !== -1, els.tableBody.innerHTML.slice(0, 120));
+    els.resultList.innerHTML.indexOf('查無「完全查無一、完全查無二」') !== -1, els.resultList.innerHTML.slice(0, 120));
 
 els.searchInput.value = '';
 api.clearSelected();
@@ -298,18 +303,18 @@ api.addSelectedByName('桂枝湯 200g', '複方');
 api.addSelectedByName('六味地黃丸 200g', '複方');
 api.addSelectedByName('六味地黃丸 丸劑 500g', '丸劑');
 api.runQuery();
-check('分類篩選：全部分類時 3 列', (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 3);
+check('分類篩選：全部分類時 3 列', (els.resultList.innerHTML.match(/class="item-card"/g) || []).length === 3);
 els.categorySelect.value = '丸劑';
 api.renderTable();
 check('分類篩選：切丸劑後只剩 1 列且結果保留',
-    (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 1 && api.getQueryRows().length === 3);
+    (els.resultList.innerHTML.match(/class="item-card"/g) || []).length === 1 && api.getQueryRows().length === 3);
 els.categorySelect.value = 'all';
 
 api.clearSelected();
 api.addSelectedByName('桂枝湯 200g', '複方');
 api.setState('5+1', 10);
 api.runQuery();
-const first = els.tableBody.innerHTML.match(/class="price-num">([^<]+)</);
+const first = els.resultList.innerHTML.match(/class="v">([\d,]+)/);
 check('5+1 模式 1200 → 1,000', first && first[1] === '1,000', first ? first[1] : 'none');
 
 // ---------- 11. 真實試算表表頭（多版本欄位、無分類欄） ----------
@@ -384,34 +389,50 @@ check('複製：實際查詢結果可整批輸出',
     realRows.length === 1 && realText.split('\n')[0] === '桂枝湯 200g（複方）',
     realText.split('\n')[0]);
 
-// ---------- 13. 各廠牌個別勾選買贈 ----------
-api.setState('5+1', 10);
-const giftItem = { category: '複方', name: 'G測試', prices: { '富田': 1200, '仙豐': 1200 } };
-check('買贈：預設每家在勾選狀態（1200 → 1,000）',
-    api.calcPrice(1200, '富田') === 1000 && api.calcPrice(1200, '仙豐') === 1000,
+// ---------- 13. 每家廠商各自選 5+1／10+1／原價 ----------
+api.setState('origin', 10);
+const giftItem = { category: '複方', name: 'G測試', prices: { '富田': 1200, '仙豐': 1200, '勝昌': 1200 } };
+check('搭贈：預設全部原價',
+    api.calcPrice(1200, '富田') === 1200 && api.calcPrice(1200, '仙豐') === 1200);
+
+api.setFactoryMode('富田', '5+1');
+check('搭贈：單獨設定富田 5+1（1200 → 1,000）', api.calcPrice(1200, '富田') === 1000,
+    '' + api.calcPrice(1200, '富田'));
+check('搭贈：其他廠商不受影響（仙豐 1200 → 1200）', api.calcPrice(1200, '仙豐') === 1200,
+    '' + api.calcPrice(1200, '仙豐'));
+
+api.setFactoryMode('仙豐', '10+1');
+check('搭贈：富田 5+1 與仙豐 10+1 可同時並存',
+    api.calcPrice(1200, '富田') === 1000 && api.calcPrice(1200, '仙豐') === 1091,
     api.calcPrice(1200, '富田') + '/' + api.calcPrice(1200, '仙豐'));
+check('搭贈：每家各自記錄自己的模式',
+    api.getModes()['富田'] === '5+1' && api.getModes()['仙豐'] === '10+1' && api.getModes()['勝昌'] === 'origin',
+    JSON.stringify(api.getModes()));
 
-api.setGift('富田', false);
-check('買贈：取消富田後該家只套折扣（1200 → 1200）', api.calcPrice(1200, '富田') === 1200,
-    '' + api.calcPrice(1200, '富田'));
-check('買贈：其他廠商仍套 5+1（仙豐 1200 → 1,000）', api.calcPrice(1200, '仙豐') === 1000,
-    '' + api.calcPrice(1200, '仙豐'));
-check('買贈：只影響有勾選的廠牌，價格不出現全表一致',
-    api.rowsToText([{ item: giftItem }]).indexOf('1200') !== -1 &&
-    api.rowsToText([{ item: giftItem }]).indexOf('1000') !== -1,
-    api.rowsToText([{ item: giftItem }]));
+api.setFactoryMode('勝昌', '5+1');
+const mixedText = api.rowsToText([{ item: giftItem }]);
+check('搭贈：複製結果列出有價廠牌', mixedText.indexOf('富田') !== -1 && mixedText.indexOf('仙豐') !== -1, mixedText);
+check('搭贈：複製結果標明各家套用的搭贈',
+    mixedText.indexOf('（搭贈：富田 5+1、仙豐 10+1、勝昌 5+1）') !== -1, mixedText);
 
-api.setState('10+1', 10);
-api.setGift('仙豐', false);
-check('買贈：10+1 個別取消（富田 1200 → 1,091）', api.calcPrice(1200, '富田') === 1091,
+api.setFactoryMode('富田', 'origin');
+check('搭贈：可改回原價（富田 1200 → 1200）', api.calcPrice(1200, '富田') === 1200,
     '' + api.calcPrice(1200, '富田'));
-check('買贈：10+1 個別取消（仙豐不套 → 1200）', api.calcPrice(1200, '仙豐') === 1200,
-    '' + api.calcPrice(1200, '仙豐'));
+api.setFactoryMode('不存在', '5+1');
+check('搭贈：未知廠商不會寫入狀態', api.getModes()['不存在'] === undefined);
 
 api.setState('origin', 10);
-check('買贈：原價模式下不套買贈、且狀態被重置',
-    api.calcPrice(1200, '富田') === 1200 && api.calcPrice(1200, '仙豐') === 1200,
-    api.calcPrice(1200, '富田') + '/' + api.calcPrice(1200, '仙豐'));
+api.clearSelected();
+api.addSelectedByName('桂枝湯 200g', '複方');
+api.runQuery();
+const beforeGift = api.getQueryRows().length;
+api.setFactoryMode('富田', '5+1');
+const tagCount = (els.resultList.innerHTML.match(/<i class="tag">5\+1<\/i>/g) || []).length;
+check('搭贈：改設定後用同一份查詢結果重算、不重新搜尋',
+    api.getQueryRows().length === beforeGift && tagCount === beforeGift,
+    'rows=' + api.getQueryRows().length + ' tags=' + tagCount);
+
+api.setState('origin', 10);
 
 // ---------- 14. 多分頁（複方／單方／錠劑／丸劑）----------
 const PILL_CSV = [

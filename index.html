@@ -256,37 +256,50 @@
         .badge-pick { background: #e2e8f0; color: #475569; }
         .updated-note {
             margin-top: 12px;
-            font-size: 12px;
+            font-size: 12.5px;
             color: #64748b;
             line-height: 1.8;
+            background: #fff;
+            border: 1px solid #e5eaf1;
+            border-radius: 12px;
+            padding: 10px 12px;
             display: none;
         }
         .updated-note .u-title {
             display: block;
             color: #475569;
             font-weight: 600;
-            margin-bottom: 4px;
+            cursor: pointer;
         }
+        .updated-note .u-body { margin-top: 8px; }
         .updated-note .u-item {
             display: inline-block;
-            margin: 0 10px 4px 0;
+            margin: 0 6px 4px 0;
             padding: 2px 8px;
             background: #f1f5f9;
-            border-radius: 4px;
+            border-radius: 6px;
             color: #475569;
             white-space: nowrap;
+            font-size: 12px;
         }
         .footer-note {
-            margin-top: 16px;
-            font-size: 12px;
+            margin-top: 14px;
+            font-size: 12.5px;
             color: #64748b;
-            text-align: right;
+            line-height: 1.8;
+            background: #fff;
+            border: 1px solid #e5eaf1;
+            border-radius: 12px;
+            padding: 10px 12px;
         }
+        .footer-note .f-title { font-weight: 600; color: #475569; cursor: pointer; font-size: 13px; }
+        .footer-note .f-body { margin-top: 8px; color: #64748b; }
         .status-note {
-            margin-top: 6px;
-            font-size: 12px;
+            margin-top: 8px;
+            font-size: 12.5px;
             color: #94a3b8;
-            text-align: right;
+            text-align: center;
+            line-height: 1.6;
         }
         @media (max-width: 768px) {
             body { padding: 10px; }
@@ -294,6 +307,144 @@
             h1 { font-size: 20px; }
             .control-panel { gap: 8px; padding: 12px; }
             th, td { padding: 8px 10px; font-size: 13px; }
+        }
+
+        /* ===== 手機優先版面（改為品項卡片，不再用寬表格） ===== */
+        body {
+            background: #f2f5f9;
+            padding: 0;
+            color: #0f172a;
+            -webkit-text-size-adjust: 100%;
+        }
+        .container {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 18px 14px 32px;
+            background: transparent;
+            box-shadow: none;
+            border-radius: 0;
+        }
+        h1 {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: .01em;
+            margin: 2px 0 16px;
+        }
+        .control-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 14px;
+            margin-bottom: 14px;
+            background: #fff;
+            border: 1px solid #e5eaf1;
+            border-radius: 14px;
+        }
+        .search-wrap { width: 100%; }
+        #searchInput {
+            min-height: 74px;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 16px;
+            background: #f8fafc;
+        }
+        #searchInput:focus { background: #fff; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, .12); }
+        .control-row { display: flex; align-items: center; gap: 10px; }
+        .discount-wrap { display: flex; align-items: center; gap: 6px; font-size: 14px; color: #475569; }
+        .discount-input {
+            width: 62px;
+            height: 44px;
+            font-size: 16px;
+            text-align: center;
+            border: 1px solid #dcdfe6;
+            border-radius: 10px;
+        }
+        #categorySelect {
+            flex: 1;
+            height: 44px;
+            font-size: 15px;
+            padding: 0 12px;
+            border: 1px solid #dcdfe6;
+            border-radius: 10px;
+            background: #fff;
+        }
+        .action-row { display: flex; gap: 10px; }
+        .search-btn, .copy-btn { flex: 1; height: 48px; font-size: 16px; border-radius: 12px; white-space: nowrap; }
+        .search-btn { font-weight: 700; box-shadow: 0 2px 8px rgba(37, 99, 235, .22); }
+        .copy-btn { font-size: 15px; }
+        .chips { display: none; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+        .chip { padding: 6px 8px 6px 12px; border-radius: 999px; font-size: 13px; }
+        .chip-x { font-size: 18px; padding: 0 6px; }
+        .gift-panel {
+            margin-bottom: 12px;
+            padding: 12px 14px;
+            background: #fff;
+            border: 1px solid #e5eaf1;
+            border-radius: 14px;
+        }
+        .gift-title { font-size: 13px; line-height: 1.5; color: #475569; cursor: pointer; padding: 2px 0; }
+        .gift-title::marker { color: #94a3b8; }
+        #giftGrid { margin-top: 10px; }
+        .gift-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px; }
+        .gift-item { display: flex; align-items: center; gap: 6px; }
+        .gift-item .fname { flex: 0 0 auto; min-width: 2.9em; font-size: 14px; color: #334155; white-space: nowrap; }
+        .gift-sel {
+            flex: 1 1 auto;
+            min-width: 68px;
+            height: 38px;
+            font-size: 14px;
+            border: 1px solid #dbe3ec;
+            border-radius: 8px;
+            background: #fff;
+            color: #0f172a;
+        }
+        .gift-sel.on { border-color: #93c5fd; background: #eff6ff; color: #1d4ed8; font-weight: 600; }
+        .match-hint { margin-bottom: 12px; padding: 10px 12px; font-size: 13px; line-height: 1.6; border-radius: 10px; }
+        .result-list { display: flex; flex-direction: column; gap: 12px; }
+        .result-empty {
+            background: #fff;
+            border: 1px dashed #d7dee8;
+            border-radius: 14px;
+            padding: 26px 16px;
+            text-align: center;
+            color: #64748b;
+            font-size: 14px;
+            line-height: 1.7;
+        }
+        .item-card { background: #fff; border: 1px solid #e5eaf1; border-radius: 14px; padding: 14px; }
+        .item-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+        .item-name { font-size: 17px; font-weight: 700; }
+        .item-cat { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #f1f5f9; color: #475569; }
+        .price-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 8px; }
+        .price-cell {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 6px;
+            padding: 7px 9px;
+            border-radius: 9px;
+            background: #f7f9fc;
+            font-size: 14px;
+        }
+        .price-cell .f { color: #64748b; font-size: 13px; white-space: nowrap; }
+        .price-cell .v { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .price-cell .tag { font-style: normal; font-size: 11px; font-weight: 600; margin-left: 4px; color: #1d4ed8; }
+        .price-cell.empty { background: #fbfcfe; }
+        .price-cell.empty .v { color: #cbd5e1; font-weight: 400; }
+        .price-cell.text .v { color: #b45309; font-weight: 600; font-size: 13px; }
+        .price-cell.gift { background: #eff6ff; }
+        .price-cell.gift .v { color: #1d4ed8; }
+        .item-more { margin-top: 8px; font-size: 12px; color: #94a3b8; }
+        @media (min-width: 480px) {
+            .price-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+        @media (min-width: 640px) {
+            .gift-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+        @media (min-width: 900px) {
+            .container { max-width: 860px; }
+            .price-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+            .gift-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
         }
     </style>
 </head>
@@ -307,65 +458,57 @@
                 <div class="suggest-list" id="suggestList"></div>
             </div>
 
-            <select id="categorySelect">
-                <option value="all">全部分類</option>
-                <option value="複方">複方</option>
-                <option value="單方">單方</option>
-                <option value="錠劑">錠劑</option>
-                <option value="丸劑">丸劑</option>
-            </select>
+            <div class="control-row">
+                <div class="discount-wrap">
+                    <span>折扣：</span>
+                    <input type="number" id="discountInput" class="discount-input" value="10" min="1" max="10" step="0.5">
+                    <span>折</span>
+                </div>
 
-            <div class="discount-wrap">
-                <span>折扣：</span>
-                <input type="number" id="discountInput" class="discount-input" value="10" min="1" max="10" step="0.5">
-                <span>折</span>
+                <select id="categorySelect">
+                    <option value="all">全部分類</option>
+                    <option value="複方">複方</option>
+                    <option value="單方">單方</option>
+                    <option value="錠劑">錠劑</option>
+                    <option value="丸劑">丸劑</option>
+                </select>
             </div>
 
-            <div class="mode-group">
-                <button class="mode-btn active" data-mode="origin">原價</button>
-                <button class="mode-btn" data-mode="5+1">5+1</button>
-                <button class="mode-btn" data-mode="10+1">10+1</button>
-            </div>
-
-            <button class="search-btn" id="searchBtn">查詢</button>
-
-            <button class="copy-btn" id="copyBtn">複製查詢結果</button>
-
-            <div class="gift-tools">
-                <span>廠商搭贈：</span>
-                <button class="gift-link" id="giftAllBtn">全選</button>
-                <span>/</span>
-                <button class="gift-link" id="giftNoneBtn">全取消</button>
+            <div class="action-row">
+                <button class="search-btn" id="searchBtn">查詢</button>
+                <button class="copy-btn" id="copyBtn">複製結果</button>
             </div>
         </div>
 
         <div class="chips" id="selectedChips"></div>
 
+        <details class="gift-panel" id="giftDetails">
+            <summary class="gift-title" id="giftSummary">廠商搭贈：全部原價（點此設定 5+1／10+1）</summary>
+            <div class="gift-grid" id="giftGrid"></div>
+        </details>
+
         <div class="match-hint" id="matchHint"></div>
 
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr id="headRow">
-                        <th id="thCategory">分類</th>
-                        <th>品名規格</th>
-                    </tr>
-                </thead>
-                <tbody id="tableBody">
-                    <tr><td colspan="13" class="empty">資料載入中...</td></tr>
-                </tbody>
-            </table>
+        <div class="result-list" id="resultList">
+            <div class="result-empty">資料載入中…</div>
         </div>
 
-        <div class="updated-note" id="updatedNote"></div>
-        <div class="footer-note">
-            ※ 5+1 = 買5送1（單價 = 原價 × 5/6）；10+1 = 買10送1（單價 = 原價 × 10/11）；可與折扣疊加計算<br>
-            ※ 價格來源：Google 試算表，空白表示該廠無此品項或未列價<br>
-            ※ 搜尋採「完全符合 → 開頭 → 包含 → 含於品名 → 相似」分層評分，模糊命中會標示提醒<br>
-            ※ 查詢方式：輸入藥名 → 從候選清單點選要查的品項（可一次多筆，每行一筆或用逗號、頓號分隔）→ 按「查詢」才列出結果<br>
-            ※ 點選的品項會列在上方標籤，按 × 可移除；只打一筆且唯一命中時會自動帶入，多筆並列則不猜、請自行點選<br>
-            ※ 候選品項可用 ↑↓ 選取後按 Enter 加入；直接按 Enter 則是換行（繼續輸入下一筆）
-        </div>
+        <details class="updated-note" id="updatedNote">
+            <summary class="u-title">各廠牌最新價格欄位（該欄無價時往前找有價的欄位）</summary>
+            <div class="u-body" id="updatedBody"></div>
+        </details>
+        <details class="footer-note">
+            <summary class="f-title">說明與計算規則</summary>
+            <div class="f-body">
+                ※ 5+1 = 買5送1（單價 = 原價 × 5/6）；10+1 = 買10送1（單價 = 原價 × 10/11）；可與折扣疊加計算<br>
+                ※ 搭贈是「每家廠商各自設定」：展開上方「廠商搭贈」可單獨把某家設成 5+1／10+1，沒搭贈的廠商留在「原價」<br>
+                ※ 價格來源：Google 試算表，空白表示該廠無此品項或未列價<br>
+                ※ 搜尋採「完全符合 → 開頭 → 包含 → 含於品名 → 相似」分層評分，模糊命中會標示提醒<br>
+                ※ 查詢方式：輸入藥名 → 從候選清單點選要查的品項（可一次多筆，每行一筆或用逗號、頓號分隔）→ 按「查詢」才列出結果<br>
+                ※ 點選的品項會列在上方標籤，按 × 可移除；只打一筆且唯一命中時會自動帶入，多筆並列則不猜、請自行點選<br>
+                ※ 候選品項可用 ↑↓ 選取後按 Enter 加入；直接按 Enter 則是換行（繼續輸入下一筆）
+            </div>
+        </details>
         <div class="status-note" id="statusNote"></div>
     </div>
 
@@ -426,11 +569,11 @@
         let selectedItems = []; // 使用者從候選清單點選的品項（查詢清單）
         let queryRows = null;   // 上次按「查詢」的結果；null 表示還沒查過
         let queryState = { notFound: [], ambiguous: [] };
-        let currentMode = 'origin'; // origin, 5+1, 10+1
         let discount = 10; // 預設10折（無折扣）
-        // 哪些廠商有買贈（只有勾選的廠商才套用 5+1／10+1，預設全選）
-        let giftFactories = {};
-        FACTORIES.forEach(function(f) { giftFactories[f] = true; });
+        // 每家廠商各自的搭贈方式：'origin'（原價，不套搭贈）／'5+1'／'10+1'
+        let factoryModes = {};
+        FACTORIES.forEach(function(f) { factoryModes[f] = 'origin'; });
+        let defaultMode = 'origin'; // 未指定廠商時使用（給驗證腳本與舊呼叫端）
 
         // ===== 簡轉繁對照表（移植自 tcm_lookup 的 S2T_MAP）=====
         const S2T_MAP = {
@@ -903,22 +1046,18 @@
             return value.trim(); // 非數字（停售、時價等）保留原文
         }
 
-        // 價格計算函數：先折扣、再買贈（買贈只套用在有勾選「該廠商有搭贈」的廠牌）
+        // 價格計算：先折扣、再套用「該廠商自己選的」搭贈方式
         function calcPrice(originalPrice, factory) {
             if (!originalPrice || typeof originalPrice !== 'number') {
                 return originalPrice;
             }
 
-            let price = originalPrice;
-            price = price * (discount / 10);
-
-            const hasGift = (factory === undefined) ? true : !!giftFactories[factory];
-            if (hasGift) {
-                if (currentMode === '5+1') {
-                    price = price * 5 / 6;
-                } else if (currentMode === '10+1') {
-                    price = price * 10 / 11;
-                }
+            let price = originalPrice * (discount / 10);
+            const mode = (factory && factoryModes[factory]) ? factoryModes[factory] : defaultMode;
+            if (mode === '5+1') {
+                price = price * 5 / 6;
+            } else if (mode === '10+1') {
+                price = price * 10 / 11;
             }
             return Math.round(price);
         }
@@ -968,7 +1107,7 @@
                 color = '#dc2626';
             }
             setStatus(msg, color);
-            buildHeadRow();
+            buildGiftPanel();
             renderTable();
             renderUpdatedNote(updated);
 
@@ -1018,10 +1157,12 @@
                 if (!label || label === f) return; // 單一欄位且無年份，不必特別說明
                 parts.push(escapeHtml(f) + '：' + escapeHtml(label));
             });
-            if (parts.length === 0) { el.style.display = 'none'; el.textContent = ''; return; }
+            if (parts.length === 0) { el.style.display = 'none'; return; }
             el.style.display = 'block';
-            el.innerHTML = '<span class="u-title">各廠牌最新價格欄位（該欄無價時往前找有價的欄位）</span>' +
-                parts.map(function(p) { return '<span class="u-item">' + p + '</span>'; }).join('');
+            const body = document.getElementById('updatedBody');
+            if (body) {
+                body.innerHTML = parts.map(function(p) { return '<span class="u-item">' + p + '</span>'; }).join('');
+            }
         }
 
         function fetchText(url, timeoutMs) {
@@ -1127,57 +1268,81 @@
             return { prefix: prefix, token: token };
         }
 
-        // ===== 渲染表格 =====
-        // 表頭：廠牌欄依 FACTORIES 動態產生，每家廠牌名稱前有「有搭贈」勾選框
-        function buildHeadRow() {
-            const headRow = document.getElementById('headRow');
-            if (!headRow) return;
-            // 保留「分類」「品名規格」兩欄，其餘重建
-            while (headRow.children.length > 2) {
-                headRow.removeChild(headRow.lastElementChild);
-            }
+        // ===== 廠商搭贈設定（每家廠商各自選 5+1／10+1／原價）=====
+        const MODE_OPTIONS = [
+            { value: 'origin', label: '原價' },
+            { value: '5+1', label: '5+1' },
+            { value: '10+1', label: '10+1' }
+        ];
 
-            const active = currentMode !== 'origin';
+        function modeHint(mode) {
+            if (mode === '5+1') return '買5送1，單價 × 5/6';
+            if (mode === '10+1') return '買10送1，單價 × 10/11';
+            return '不套搭贈';
+        }
+
+        // 面板標題摘要目前有哪些廠商套了搭贈
+        function updateGiftSummary() {
+            const el = document.getElementById('giftSummary');
+            if (!el) return;
+            const s = modeSummary();
+            el.textContent = s === '全部原價'
+                ? '廠商搭贈：全部原價（點此設定 5+1／10+1）'
+                : '廠商搭贈：' + s + '（點此調整）';
+        }
+
+        function buildGiftPanel() {
+            const grid = document.getElementById('giftGrid');
+            if (!grid) return;
+            let html = '';
             FACTORIES.forEach(function(f) {
-                const th = document.createElement('th');
-                th.className = 'factory-th';
-
-                const label = document.createElement('label');
-                const chk = document.createElement('input');
-                chk.type = 'checkbox';
-                chk.className = 'gift-chk';
-                chk.setAttribute('data-factory', f);
-                chk.checked = !!giftFactories[f];
-                chk.disabled = !active;
-                chk.title = active
-                    ? '打勾＝' + f + ' 有搭贈，套用 ' + modeLabel()
-                    : '目前是原價模式，沒有買贈可套用';
-
-                const span = document.createElement('span');
-                span.className = giftFactories[f] ? '' : 'off';
-                span.textContent = f;
-
-                label.appendChild(chk);
-                label.appendChild(span);
-                th.appendChild(label);
-                headRow.appendChild(th);
+                const cur = factoryModes[f];
+                html += '<div class="gift-item"><span class="fname">' + f + '</span>' +
+                    '<select class="gift-sel' + (cur !== 'origin' ? ' on' : '') + '" data-factory="' + f + '">';
+                MODE_OPTIONS.forEach(function(o) {
+                    html += '<option value="' + o.value + '"' + (cur === o.value ? ' selected' : '') + '>' +
+                        o.label + '</option>';
+                });
+                html += '</select></div>';
             });
+            grid.innerHTML = html;
+            grid.querySelectorAll('.gift-sel').forEach(function(sel) {
+                sel.addEventListener('change', function() {
+                    setFactoryMode(sel.getAttribute('data-factory'), sel.value);
+                });
+            });
+            updateGiftSummary();
+        }
+
+        // 設定某家廠商的搭贈方式，立即用同一份查詢結果重算（不必重新搜尋）
+        function setFactoryMode(factory, mode) {
+            if (!factoryModes.hasOwnProperty(factory)) return;
+            if (mode !== 'origin' && mode !== '5+1' && mode !== '10+1') return;
+            factoryModes[factory] = mode;
+            const sel = document.querySelector('.gift-sel[data-factory="' + factory + '"]');
+            if (sel) {
+                sel.value = mode;
+                sel.className = 'gift-sel' + (mode === 'origin' ? '' : ' on');
+            }
+            renderTable();
+            updateGiftSummary();
+            setHint(factory + '：' + (mode === 'origin' ? '原價' : mode) + '（' + modeHint(mode) + '）');
         }
 
         // 只渲染「按查詢」之後的結果；打字階段不再即時列出大量品項
-        // 折扣、分類、買贈模式變動時也走這裡，用同一份查詢結果重算
+        // 折扣、分類、各廠搭贈變動時也走這裡，用同一份查詢結果重算
         function renderTable() {
             const category = document.getElementById('categorySelect').value;
-            const tbody = document.getElementById('tableBody');
-            const colspan = hasCategory ? 13 : 12;
+            const list = document.getElementById('resultList');
+            if (!list) return;
 
             if (queryRows === null) {
                 lastRows = [];
-                tbody.innerHTML = '<tr><td colspan="' + colspan + '" class="empty">' +
+                list.innerHTML = '<div class="result-empty">' +
                     (allData.length
                         ? '輸入藥名 → 從候選清單點選品項 → 按「查詢」列出結果（可一次多筆）'
                         : '資料載入中…') +
-                    '</td></tr>';
+                    '</div>';
                 setHint('');
                 return;
             }
@@ -1199,7 +1364,7 @@
                 } else {
                     msg = '目前分類下沒有符合的品項';
                 }
-                tbody.innerHTML = '<tr><td colspan="' + colspan + '" class="empty">' + msg + '</td></tr>';
+                list.innerHTML = '<div class="result-empty">' + msg + '</div>';
                 return;
             }
 
@@ -1214,27 +1379,46 @@
                     ? '<span class="badge ' + badge.cls + '">' + badge.label + '</span>'
                     : '';
 
-                html += '<tr>' +
-                    (hasCategory ? '<td>' + escapeHtml(item.category) + '</td>' : '') +
-                    '<td>' + escapeHtml(item.name) + badgeHtml + '</td>';
+                html += '<div class="item-card"><div class="item-head">' +
+                    '<span class="item-name">' + escapeHtml(item.name) + '</span>' +
+                    (hasCategory && item.category
+                        ? '<span class="item-cat">' + escapeHtml(item.category) + '</span>'
+                        : '') +
+                    badgeHtml +
+                    '</div><div class="price-grid">';
 
+                let emptyCount = 0;
                 FACTORIES.forEach(function(factory) {
                     const raw = item.prices[factory];
                     const calculated = calcPrice(raw, factory);
+                    const mode = factoryModes[factory];
 
                     if (calculated === null || calculated === undefined || calculated === '') {
-                        html += '<td class="no-price">-</td>';
-                    } else if (typeof calculated === 'number') {
-                        html += '<td class="price-num">' + calculated.toLocaleString() + '</td>';
+                        emptyCount++;
+                        return;
+                    }
+                    if (typeof calculated === 'number') {
+                        html += '<div class="price-cell' + (mode !== 'origin' ? ' gift' : '') + '">' +
+                            '<span class="f">' + factory +
+                            (mode !== 'origin' ? '<i class="tag">' + mode + '</i>' : '') +
+                            '</span>' +
+                            '<span class="v">' + calculated.toLocaleString() + '</span></div>';
                     } else {
-                        html += '<td class="text-value">' + escapeHtml(calculated) + '</td>';
+                        html += '<div class="price-cell text"><span class="f">' + factory +
+                            '</span><span class="v">' + escapeHtml(calculated) + '</span></div>';
                     }
                 });
 
-                html += '</tr>';
+                html += '</div>';
+                if (emptyCount === FACTORIES.length) {
+                    html += '<div class="item-more">此品項各廠皆未列價</div>';
+                } else if (emptyCount > 0) {
+                    html += '<div class="item-more">其餘 ' + emptyCount + ' 家未列價</div>';
+                }
+                html += '</div>';
             });
 
-            tbody.innerHTML = html;
+            list.innerHTML = html;
         }
 
         // ===== 複製查詢結果（LINE 好讀的區塊格式：每家廠牌並排對齊）=====
@@ -1242,10 +1426,20 @@
         const NAME_WIDTH = 3;      // 廠牌名稱欄寬（以全角字為單位）
         const PRICE_WIDTH = 4;     // 價格欄寬（右靠，數字位數不同也能對齊）
 
-        function modeLabel() {
-            if (currentMode === '5+1') return '5+1';
-            if (currentMode === '10+1') return '10+1';
+        function modeLabel(factory) {
+            const mode = (factory && factoryModes[factory]) ? factoryModes[factory] : defaultMode;
+            if (mode === '5+1') return '5+1';
+            if (mode === '10+1') return '10+1';
             return '原價';
+        }
+
+        // 目前有哪些廠商套了搭贈（複製結果的說明用）
+        function modeSummary() {
+            const parts = [];
+            FACTORIES.forEach(function(f) {
+                if (factoryModes[f] !== 'origin') parts.push(f + ' ' + factoryModes[f]);
+            });
+            return parts.length ? parts.join('、') : '全部原價';
         }
 
         // 廠牌名補全角空格到固定寬度，讓價格起始位置對齊
@@ -1278,6 +1472,8 @@
                 });
 
                 const lines = [title];
+                const summary = modeSummary();
+                if (summary !== '全部原價') lines.push('（搭贈：' + summary + '）');
                 for (let i = 0; i < cells.length; i += CELL_PER_LINE) {
                     lines.push(cells.slice(i, i + CELL_PER_LINE).join('\u3000'));
                 }
@@ -1310,7 +1506,7 @@
             const text = rowsToText(lastRows);
             const done = function(ok) {
                 if (ok) {
-                    setHint('已複製 ' + lastRows.length + ' 筆品項（' + modeLabel() + '、折扣 ' + discount +
+                    setHint('已複製 ' + lastRows.length + ' 筆品項（搭贈：' + modeSummary() + '；折扣 ' + discount +
                         ' 折）｜格式已排好，可直接貼到 LINE 或記事本');
                 } else {
                     setHint('複製失敗：瀏覽器未允許存取剪貼簿，請改用滑鼠選取表格內容複製');
@@ -1599,50 +1795,7 @@
             renderTable();
         });
 
-        document.querySelectorAll('.mode-btn').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                document.querySelectorAll('.mode-btn').forEach(function(b) { b.classList.remove('active'); });
-                btn.classList.add('active');
-                currentMode = btn.dataset.mode;
-                buildHeadRow();   // 切回原價時把廠牌勾選框停用
-                renderTable();
-            });
-        });
-
-        // 廠牌「有搭贈」勾選：個別廠商可取消，取消者只套用折扣、不套買贈
-        document.getElementById('headRow').addEventListener('change', function(e) {
-            const chk = e.target;
-            if (!chk || chk.className !== 'gift-chk') return;
-            const factory = chk.getAttribute('data-factory');
-            if (!factory) return;
-            giftFactories[factory] = chk.checked;
-
-            const span = chk.parentNode ? chk.parentNode.querySelector('span') : null;
-            if (span) span.className = chk.checked ? '' : 'off';
-
-            renderTable();
-
-            const offCount = FACTORIES.filter(function(f) { return !giftFactories[f]; }).length;
-            if (offCount > 0) {
-                setHint('已取消 ' + offCount + ' 家廠商的搭贈（這些廠商只套折扣、不套 ' + modeLabel() + '）');
-            } else {
-                setHint('');
-            }
-        });
-
-        document.getElementById('giftAllBtn').addEventListener('click', function() {
-            FACTORIES.forEach(function(f) { giftFactories[f] = true; });
-            buildHeadRow();
-            renderTable();
-            setHint('已將 11 家廠商全部設為有搭贈');
-        });
-
-        document.getElementById('giftNoneBtn').addEventListener('click', function() {
-            FACTORIES.forEach(function(f) { giftFactories[f] = false; });
-            buildHeadRow();
-            renderTable();
-            setHint('已取消全部廠商的搭贈（只套用折扣）');
-        });
+        // 搭贈面板的每廠 select 由 buildGiftPanel() 綁定（見 setFactoryMode）
 
         // 點 chips 上的 × 可把品項從查詢清單移除
         document.getElementById('selectedChips').addEventListener('click', function(e) {
