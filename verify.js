@@ -38,7 +38,7 @@ const api = new Function(
     code + '\nreturn { parseCSV, buildData, parsePrice, calcPrice, renderTable, applyCsv, FACTORIES, ' +
     'normalizeSearchText, splitNameSpec, searchRows, buildSearchIndex, matchBadge, ' +
     'scoreExactTier, scoreFuzzyTier, editSimilarity, levenshteinDistance, uniqueCharMatchScore, SAMPLE_CSV_TEXT, ' +
-    'getSuggestions, escapeHtml, ' +
+    'getSuggestions, escapeHtml, splitQueryTokens, lastTokenInfo, ' +
     'setState: function(m, d){ currentMode = m; discount = d; } };'
 )(documentStub, fetchStub, AbortController, setTimeout, clearTimeout, function () {});
 
@@ -202,13 +202,45 @@ check('HTML 轉義：< > & 正確處理',
 els.searchInput.value = '';
 els.categorySelect.value = '錠劑';
 api.renderTable();
-check('分類篩選(錠劑) = 1 列', (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 1);
-check('無關鍵字時不顯示標籤', els.tableBody.innerHTML.indexOf('badge') === -1);
+check('無輸入時不列出全部品項（只留提示列）',
+    (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 1 &&
+    els.tableBody.innerHTML.indexOf('請輸入藥品名稱查詢') !== -1, els.tableBody.innerHTML.slice(0, 120));
 
 els.categorySelect.value = 'all';
 els.searchInput.value = '不存在的藥';
 api.renderTable();
-check('查無資料提示', els.tableBody.innerHTML.indexOf('無符合條件的藥品') !== -1);
+check('查無資料提示', els.tableBody.innerHTML.indexOf('查無「不存在的藥」') !== -1, els.tableBody.innerHTML.slice(0, 120));
+
+// ---------- 多筆輸入 ----------
+check('多筆：換行分隔', api.splitQueryTokens('桂枝湯\n乙字湯').length === 2, String(api.splitQueryTokens('桂枝湯\n乙字湯').length));
+check('多筆：逗號／頓號／分號都算分隔',
+    api.splitQueryTokens('桂枝湯,乙字湯、炙甘草；大黃').length === 4,
+    String(api.splitQueryTokens('桂枝湯,乙字湯、炙甘草；大黃').length));
+check('多筆：空白不當分隔（避免拆壞「桂枝湯 200g」）',
+    api.splitQueryTokens('桂枝湯 200g').length === 1, String(api.splitQueryTokens('桂枝湯 200g').length));
+check('多筆：空字串與多餘分隔不產生空查詢',
+    api.splitQueryTokens(' , \n 、 ').length === 0, String(api.splitQueryTokens(' , \n 、 ').length));
+check('多筆：lastTokenInfo 取出最後一段',
+    api.lastTokenInfo('桂枝湯、炙甘').token === '炙甘' && api.lastTokenInfo('桂枝湯、炙甘').prefix === '桂枝湯、',
+    JSON.stringify(api.lastTokenInfo('桂枝湯、炙甘')));
+
+els.searchInput.value = '桂枝湯\n炙甘草';
+api.renderTable();
+check('多筆：兩筆查詢合併列出（不重複、共 3 列）',
+    (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 3,
+    'rows=' + (els.tableBody.innerHTML.match(/<tr>/g) || []).length);
+check('多筆：提示列說明命中筆數', els.matchHint.style.display === 'block' &&
+    els.matchHint.textContent.indexOf('共 2 筆查詢') !== -1, String(els.matchHint.textContent));
+
+els.searchInput.value = '桂枝湯\n不存在的藥';
+api.renderTable();
+check('多筆：查無的品項列在提示列', els.matchHint.textContent.indexOf('查無：不存在的藥') !== -1,
+    String(els.matchHint.textContent));
+
+els.searchInput.value = '完全查無一\n完全查無二';
+api.renderTable();
+check('多筆：全部查無時表格顯示查無訊息',
+    els.tableBody.innerHTML.indexOf('查無「完全查無一、完全查無二」') !== -1, els.tableBody.innerHTML.slice(0, 120));
 
 els.searchInput.value = '桂枝';
 api.setState('5+1', 10);
