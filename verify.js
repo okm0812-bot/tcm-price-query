@@ -11,9 +11,15 @@ const code = scriptMatch[1];
 function makeEl(id) {
     return {
         id, value: '', textContent: '', innerHTML: '', style: {},
-        files: null,
+        files: null, title: '',
+        children: [],
+        lastElementChild: null,
+        parentNode: null,
         classList: { add() {}, remove() {} },
         dataset: {},
+        appendChild() {}, removeChild() {},
+        setAttribute() {}, getAttribute() { return null; },
+        querySelector() { return null; },
         addEventListener() {},
         click() {}
     };
@@ -27,7 +33,8 @@ els.discountInput.value = '10';
 
 const documentStub = {
     getElementById: function (id) { return els[id] || makeEl(id); },
-    querySelectorAll: function () { return []; }
+    querySelectorAll: function () { return []; },
+    createElement: function (tag) { return makeEl('new-' + tag); }
 };
 
 // 讓 loadData 的載入鏈永遠 pending，避免非同步覆蓋測試中的表格
@@ -39,7 +46,10 @@ const api = new Function(
     'normalizeSearchText, splitNameSpec, searchRows, buildSearchIndex, matchBadge, ' +
     'scoreExactTier, scoreFuzzyTier, editSimilarity, levenshteinDistance, uniqueCharMatchScore, SAMPLE_CSV_TEXT, ' +
     'getSuggestions, escapeHtml, splitQueryTokens, lastTokenInfo, rowsToText, modeLabel, ' +
-    'setState: function(m, d){ currentMode = m; discount = d; } };'
+    'mergeSheets, SHEETS, commitData, ' +
+    'setGift: function(f, on) { giftFactories[f] = on; }, ' +
+    'setState: function(m, d){ currentMode = m; discount = d; ' +
+    'FACTORIES.forEach(function(f){ giftFactories[f] = true; }); } };'
 )(documentStub, fetchStub, AbortController, setTimeout, clearTimeout, function () {});
 
 let pass = 0, fail = 0;
@@ -319,6 +329,82 @@ const realText = api.rowsToText(realRows);
 check('複製：實際查詢結果可整批輸出',
     realRows.length === 1 && realText.split('\n')[0] === '桂枝湯 200g（複方）',
     realText.split('\n')[0]);
+
+// ---------- 13. 各廠牌個別勾選買贈 ----------
+api.setState('5+1', 10);
+const giftItem = { category: '複方', name: 'G測試', prices: { '富田': 1200, '仙豐': 1200 } };
+check('買贈：預設每家在勾選狀態（1200 → 1,000）',
+    api.calcPrice(1200, '富田') === 1000 && api.calcPrice(1200, '仙豐') === 1000,
+    api.calcPrice(1200, '富田') + '/' + api.calcPrice(1200, '仙豐'));
+
+api.setGift('富田', false);
+check('買贈：取消富田後該家只套折扣（1200 → 1200）', api.calcPrice(1200, '富田') === 1200,
+    '' + api.calcPrice(1200, '富田'));
+check('買贈：其他廠商仍套 5+1（仙豐 1200 → 1,000）', api.calcPrice(1200, '仙豐') === 1000,
+    '' + api.calcPrice(1200, '仙豐'));
+check('買贈：只影響有勾選的廠牌，價格不出現全表一致',
+    api.rowsToText([{ item: giftItem }]).indexOf('1200') !== -1 &&
+    api.rowsToText([{ item: giftItem }]).indexOf('1000') !== -1,
+    api.rowsToText([{ item: giftItem }]));
+
+api.setState('10+1', 10);
+api.setGift('仙豐', false);
+check('買贈：10+1 個別取消（富田 1200 → 1,091）', api.calcPrice(1200, '富田') === 1091,
+    '' + api.calcPrice(1200, '富田'));
+check('買贈：10+1 個別取消（仙豐不套 → 1200）', api.calcPrice(1200, '仙豐') === 1200,
+    '' + api.calcPrice(1200, '仙豐'));
+
+api.setState('origin', 10);
+check('買贈：原價模式下不套買贈、且狀態被重置',
+    api.calcPrice(1200, '富田') === 1200 && api.calcPrice(1200, '仙豐') === 1200,
+    api.calcPrice(1200, '富田') + '/' + api.calcPrice(1200, '仙豐'));
+
+// ---------- 14. 多分頁（複方／單方／錠劑／丸劑）----------
+const PILL_CSV = [
+    '"品名規格 【複方錠劑】","規格 ","富田 2026.11.01價格 500錠","仙豐 2026/07/01價格","科達115年11月 原價","科達115年11月 新價(2026.11.01)","勝昌最新價格 (2026.09版PDF) 300錠","備註"',
+    '加味逍遙散濃縮錠,500錠,720,,520,540,510,富田為0.34gm×500錠',
+    '杞菊地黃丸濃縮錠,500錠,630,440,460,470,440,'
+].join('\n');
+const pill = api.buildData(PILL_CSV, '錠劑');
+check('錠劑：品名＋規格組成完整名稱',
+    pill.data[0].name === '加味逍遙散濃縮錠 500錠', pill.data[0].name);
+check('錠劑：分類由分頁名稱指定', pill.data[0].category === '錠劑', pill.data[0].category);
+check('錠劑：富田取到價格 720', pill.data[0].prices['富田'] === 720, '' + pill.data[0].prices['富田']);
+check('錠劑：科達同月份有原價與新價時取新價', pill.data[0].prices['科達'] === 540, '' + pill.data[0].prices['科達']);
+check('錠劑：備註欄不會被當成價格欄', pill.data[0].prices['天明'] === null && pill.missing.indexOf('仙豐') === -1,
+    'missing=' + pill.missing.join('、'));
+
+const PILL2_CSV = [
+    '分類,品番,品名,規格(丸/包裝),勝昌價格,備註',
+    '成方丸丹劑(600mg/丸),05140E,左歸丸,"1,000丸","2,200",',
+    '中成藥丸丹劑(600mg/丸),04070H,六味地黃丸,250丸,799,'
+].join('\n');
+const wan = api.buildData(PILL2_CSV, '丸劑');
+check('丸劑：品名＋規格組成完整名稱', wan.data[0].name === '左歸丸 1,000丸', wan.data[0].name);
+check('丸劑：分類改為丸劑（蓋掉表內細分類）', wan.data[0].category === '丸劑', wan.data[0].category);
+check('丸劑：只對應到勝昌價格', wan.data[0].prices['勝昌'] === 2200 && wan.data[0].prices['富田'] === null,
+    '' + wan.data[0].prices['勝昌']);
+check('丸劑：缺欄警告包含未提供價格的廠牌', wan.missing.length === 10, 'n=' + wan.missing.length);
+
+const merged = api.mergeSheets([
+    { label: '錠劑', text: PILL_CSV },
+    { label: '丸劑', text: PILL2_CSV }
+]);
+check('合併：兩張分頁的品項都在', merged.items.length === 4, 'n=' + merged.items.length);
+check('合併：分類標籤各自正確',
+    merged.items.filter(function(x) { return x.category === '錠劑'; }).length === 2 &&
+    merged.items.filter(function(x) { return x.category === '丸劑'; }).length === 2);
+check('合併：有分類欄', merged.hasCategory === true);
+
+api.commitData(merged.items, merged.updated, merged.missing, '測試合併', false, true);
+check('合併後可查到丸劑品項（左歸丸）',
+    api.searchRows('左歸丸').length === 1 && api.searchRows('左歸丸')[0].item.category === '丸劑');
+check('合併後可查到錠劑品項（加味逍遙散）', api.searchRows('加味逍遙散').length >= 1);
+check('合併後分類篩選可運作',
+    api.searchRows('六味地黃丸').every(function(r) { return r.item.category === '丸劑'; }));
+
+// 還原成示範資料
+api.applyCsv(api.SAMPLE_CSV_TEXT, '內建示範資料', true);
 
 console.log('\n===== ' + pass + ' passed, ' + fail + ' failed =====');
 process.exit(fail === 0 ? 0 : 1);
