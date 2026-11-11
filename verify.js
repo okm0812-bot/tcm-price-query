@@ -26,7 +26,7 @@ function makeEl(id) {
     };
 }
 const els = {};
-['searchInput', 'categorySelect', 'discountInput', 'resultList', 'giftGrid', 'statusNote', 'matchHint', 'pickCsvBtn', 'csvFileInput', 'selectedChips', 'suggestList', 'searchBtn', 'copyBtn', 'updatedNote']
+['searchInput', 'categorySelect', 'discountInput', 'resultList', 'giftGrid', 'statusNote', 'matchHint', 'pickCsvBtn', 'csvFileInput', 'selectedChips', 'suggestList', 'searchBtn', 'copyBtn', 'updatedNote', 'clearBtn', 'giftSummary', 'updatedBody']
     .forEach(function (id) { els[id] = makeEl(id); });
 els.searchInput.value = '';
 els.categorySelect.value = 'all';
@@ -49,9 +49,10 @@ const api = new Function(
     'scoreExactTier, scoreFuzzyTier, editSimilarity, levenshteinDistance, uniqueCharMatchScore, SAMPLE_CSV_TEXT, ' +
     'getSuggestions, escapeHtml, splitQueryTokens, lastTokenInfo, rowsToText, modeLabel, ' +
     'mergeSheets, SHEETS, commitData, runQuery, addSelected, addSelectedByName, removeSelected, ' +
-    'clearSelected, renderChips, findItem, ' +
+    'clearSelected, renderChips, findItem, clearAll, ' +
     'getQueryRows: function() { return queryRows; }, ' +
     'getSelected: function() { return selectedItems.slice(); }, ' +
+    'getDiscount: function() { return discount; }, ' +
     'getModes: function() { return JSON.parse(JSON.stringify(factoryModes)); }, ' +
     'setFactoryMode: setFactoryMode, ' +
     'setState: function(m, d){ defaultMode = m; discount = d; ' +
@@ -431,6 +432,41 @@ const tagCount = (els.resultList.innerHTML.match(/<i class="tag">5\+1<\/i>/g) ||
 check('搭贈：改設定後用同一份查詢結果重算、不重新搜尋',
     api.getQueryRows().length === beforeGift && tagCount === beforeGift,
     'rows=' + api.getQueryRows().length + ' tags=' + tagCount);
+
+api.setState('origin', 10);
+
+// ---------- 13.5 清除按鈕 ----------
+api.setFactoryMode('富田', '5+1');
+api.clearSelected();
+api.addSelectedByName('桂枝湯 200g', '複方');
+api.addSelectedByName('炙甘草湯 200g', '複方');
+api.runQuery();
+const beforeClear = (els.resultList.innerHTML.match(/class="item-card"/g) || []).length;
+check('清除：查詢後有 2 張卡片', beforeClear === 2, 'cards=' + beforeClear);
+
+api.clearAll();
+const afterCards = (els.resultList.innerHTML.match(/class="item-card"/g) || []).length;
+check('清除：卡片清空、回到未查詢提示',
+    afterCards === 0 && els.resultList.innerHTML.indexOf('按「查詢」列出結果') !== -1,
+    'cards=' + afterCards);
+check('清除：輸入框被清空', els.searchInput.value === '', els.searchInput.value);
+check('清除：查詢清單與結果都清空',
+    api.getSelected().length === 0 && api.getQueryRows() === null,
+    'selected=' + api.getSelected().length);
+check('清除：上方標籤列隱藏', els.selectedChips.style.display === 'none', String(els.selectedChips.style.display));
+check('清除：提示說明設定仍保留',
+    els.matchHint.textContent.indexOf('折扣與各廠搭贈設定保留') !== -1, els.matchHint.textContent);
+check('清除：折扣與各廠搭贈設定沒有被重設',
+    api.getDiscount() === 10 && api.getModes()['富田'] === '5+1',
+    'discount=' + api.getDiscount() + ' 富田=' + api.getModes()['富田']);
+
+// 清除後重新查詢，之前的搭贈設定仍然生效
+api.addSelectedByName('桂枝湯 200g', '複方');
+api.runQuery();
+check('清除：重新查詢時舊的搭贈設定仍生效',
+    api.calcPrice(1200, '富田') === 1000 &&
+    (els.resultList.innerHTML.match(/<i class="tag">5\+1<\/i>/g) || []).length === 1,
+    els.resultList.innerHTML.slice(0, 120));
 
 api.setState('origin', 10);
 

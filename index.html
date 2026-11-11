@@ -368,9 +368,17 @@
             border-radius: 10px;
             background: #fff;
         }
-        .action-row { display: flex; gap: 10px; }
-        .search-btn, .copy-btn { flex: 1; height: 48px; font-size: 16px; border-radius: 12px; white-space: nowrap; }
+        .action-row { display: grid; grid-template-columns: 1.2fr 0.8fr 1fr; gap: 10px; width: 100%; }
+        .search-btn, .copy-btn, .clear-btn { width: 100%; height: 48px; font-size: 16px; border-radius: 12px; white-space: nowrap; }
         .search-btn { font-weight: 700; box-shadow: 0 2px 8px rgba(37, 99, 235, .22); }
+        .clear-btn {
+            font-size: 15px;
+            background: #fff;
+            color: #475569;
+            border: 1px solid #dbe3ec;
+        }
+        .clear-btn:hover { background: #f8fafc; border-color: #c7d2e0; }
+        .clear-btn:active { background: #f1f5f9; }
         .copy-btn { font-size: 15px; }
         .chips { display: none; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
         .chip { padding: 6px 8px 6px 12px; border-radius: 999px; font-size: 13px; }
@@ -476,6 +484,7 @@
 
             <div class="action-row">
                 <button class="search-btn" id="searchBtn">查詢</button>
+                <button class="clear-btn" id="clearBtn">清除</button>
                 <button class="copy-btn" id="copyBtn">複製結果</button>
             </div>
         </div>
@@ -1687,6 +1696,16 @@
             renderChips();
         }
 
+        // 「清除」按鈕：清空輸入框、查詢清單與結果（保留折扣與各廠搭贈設定）
+        function clearAll() {
+            const si = document.getElementById('searchInput');
+            if (si) si.value = '';
+            hideSuggest();
+            clearSelected();
+            renderTable();
+            setHint('已清除輸入與查詢結果（折扣與各廠搭贈設定保留）');
+        }
+
         // 這段文字是否已經被清單裡的品項涵蓋（避免同一筆重複查）
         function isTokenCovered(token) {
             const q = normalizeSearchText(token);
@@ -1808,6 +1827,8 @@
         document.getElementById('searchBtn').addEventListener('click', function() {
             runQuery();
         });
+
+        document.getElementById('clearBtn').addEventListener('click', clearAll);
 
         document.getElementById('copyBtn').addEventListener('click', copyResults);
 
