@@ -38,6 +38,7 @@ const api = new Function(
     code + '\nreturn { parseCSV, buildData, parsePrice, calcPrice, renderTable, applyCsv, FACTORIES, ' +
     'normalizeSearchText, splitNameSpec, searchRows, buildSearchIndex, matchBadge, ' +
     'scoreExactTier, scoreFuzzyTier, editSimilarity, levenshteinDistance, uniqueCharMatchScore, SAMPLE_CSV_TEXT, ' +
+    'getSuggestions, escapeHtml, ' +
     'setState: function(m, d){ currentMode = m; discount = d; } };'
 )(documentStub, fetchStub, AbortController, setTimeout, clearTimeout, function () {});
 
@@ -181,6 +182,22 @@ check('低信心單筆 → 顯示相似品項提示', els.matchHint.style.displa
 const inline = api.buildData(api.SAMPLE_CSV_TEXT);
 check('內建示範資料可解析', inline.data.length === 7, 'n=' + inline.data.length);
 check('內建示範資料無缺欄', inline.missing.length === 0, inline.missing.join('、'));
+
+// 輸入時的品項預選
+const sug1 = api.getSuggestions('地黃');
+check('預選：輸入 2 字 → 列出候選', sug1.length === 2, 'n=' + sug1.length);
+check('預選：候選帶符合度分數可用', sug1.every(function (s) { return typeof s.score === 'number'; }));
+const sug2 = api.getSuggestions('桂枝');
+check('預選：輸入「桂枝」→ 第一個是桂枝湯', sug2.length >= 1 && sug2[0].item.name === '桂枝湯 200g',
+    sug2[0] && sug2[0].item.name);
+const sug3 = api.getSuggestions('湯');
+check('預選：單字查詢也有候選（不空白）', sug3.length >= 1, 'n=' + sug3.length);
+const sug4 = api.getSuggestions('');
+check('預選：空字串不顯示候選', sug4.length === 0, 'n=' + sug4.length);
+const sug5 = api.getSuggestions('地黃', 2);
+check('預選：上限可調', sug5.length === 2, 'n=' + sug5.length);
+check('HTML 轉義：< > & 正確處理',
+    api.escapeHtml('<b>A&B</b>') === '&lt;b&gt;A&amp;B&lt;/b&gt;', api.escapeHtml('<b>A&B</b>'));
 
 els.searchInput.value = '';
 els.categorySelect.value = '錠劑';

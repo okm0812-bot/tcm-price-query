@@ -39,8 +39,7 @@
             border-radius: 6px;
         }
         #searchInput {
-            flex: 1;
-            min-width: 240px;
+            width: 100%;
             padding: 10px 14px;
             border: 1px solid #dcdfe6;
             border-radius: 6px;
@@ -48,6 +47,60 @@
             outline: none;
         }
         #searchInput:focus { border-color: #3b82f6; }
+
+        /* 輸入時的品項預選清單 */
+        .search-wrap {
+            position: relative;
+            flex: 1;
+            min-width: 240px;
+        }
+        .suggest-list {
+            display: none;
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            max-height: 320px;
+            overflow-y: auto;
+            background: #fff;
+            border: 1px solid #dcdfe6;
+            border-radius: 6px;
+            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
+            z-index: 20;
+        }
+        .suggest-list.show { display: block; }
+        .suggest-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .suggest-item:last-child { border-bottom: none; }
+        .suggest-item:hover, .suggest-item.active { background: #eff6ff; }
+        .suggest-item .s-name {
+            flex: 1;
+            min-width: 0;
+            font-size: 15px;
+            color: #1e293b;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .suggest-item .s-cat {
+            font-size: 12px;
+            color: #64748b;
+            background: #f1f5f9;
+            border-radius: 4px;
+            padding: 1px 6px;
+            flex-shrink: 0;
+        }
+        .suggest-empty {
+            padding: 10px 12px;
+            font-size: 13px;
+            color: #94a3b8;
+        }
         select, .discount-input {
             padding: 10px 14px;
             border: 1px solid #dcdfe6;
@@ -158,7 +211,10 @@
         <h1>科學中藥各廠牌價格查詢系統</h1>
 
         <div class="control-panel">
-            <input type="text" id="searchInput" placeholder="請輸入藥品名稱搜尋（例如：桂枝湯、六味地黃丸）">
+            <div class="search-wrap">
+                <input type="text" id="searchInput" placeholder="請輸入藥品名稱搜尋（例如：桂枝湯、六味地黃丸）" autocomplete="off">
+                <div class="suggest-list" id="suggestList"></div>
+            </div>
 
             <select id="categorySelect">
                 <option value="all">全部分類</option>
@@ -790,8 +846,8 @@
                     : '';
 
                 html += '<tr>' +
-                    '<td>' + item.category + '</td>' +
-                    '<td>' + item.name + badgeHtml + '</td>';
+                    '<td>' + escapeHtml(item.category) + '</td>' +
+                    '<td>' + escapeHtml(item.name) + badgeHtml + '</td>';
 
                 FACTORIES.forEach(function(factory) {
                     const raw = item.prices[factory];
@@ -802,7 +858,7 @@
                     } else if (typeof calculated === 'number') {
                         html += '<td class="price-num">' + calculated.toLocaleString() + '</td>';
                     } else {
-                        html += '<td class="text-value">' + calculated + '</td>';
+                        html += '<td class="text-value">' + escapeHtml(calculated) + '</td>';
                     }
                 });
 
@@ -812,8 +868,121 @@
             tbody.innerHTML = html;
         }
 
+        // ===== 輸入時的品項預選 =====
+        const SUGGEST_LIMIT = 8;
+        let suggestRows = [];
+        let suggestIndex = -1;
+
+        function escapeHtml(s) {
+            return String(s === null || s === undefined ? '' : s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function getSuggestions(rawQuery, limit) {
+            const q = normalizeSearchText(rawQuery);
+            if (!q) return [];
+            return searchRows(rawQuery).slice(0, limit || SUGGEST_LIMIT);
+        }
+
+        function hideSuggest() {
+            const el = document.getElementById('suggestList');
+            el.classList.remove('show');
+            el.innerHTML = '';
+            suggestRows = [];
+            suggestIndex = -1;
+        }
+
+        function renderSuggestions() {
+            const rawQuery = document.getElementById('searchInput').value.trim();
+            const el = document.getElementById('suggestList');
+            if (!normalizeSearchText(rawQuery)) { hideSuggest(); return; }
+
+            const rows = getSuggestions(rawQuery);
+            if (!rows.length) {
+                suggestRows = [];
+                suggestIndex = -1;
+                el.innerHTML = '<div class="suggest-empty">查無符合品項，請確認藥名</div>';
+                el.classList.add('show');
+                return;
+            }
+
+            suggestRows = rows;
+            suggestIndex = 0;
+            let html = '';
+            rows.forEach(function(r, idx) {
+                const badge = matchBadge(r.score);
+                html += '<div class="suggest-item' + (idx === 0 ? ' active' : '') + '" data-idx="' + idx + '">' +
+                    '<span class="s-name">' + escapeHtml(r.item.name) + '</span>' +
+                    '<span class="s-cat">' + escapeHtml(r.item.category) + '</span>' +
+                    (badge ? '<span class="badge ' + badge.cls + '">' + badge.label + '</span>' : '') +
+                    '</div>';
+            });
+            el.innerHTML = html;
+            el.classList.add('show');
+        }
+
+        function moveSuggest(step) {
+            const el = document.getElementById('suggestList');
+            if (!el.classList.contains('show') || !suggestRows.length) return;
+            suggestIndex = (suggestIndex + step + suggestRows.length) % suggestRows.length;
+            const items = el.querySelectorAll('.suggest-item');
+            for (let i = 0; i < items.length; i++) {
+                items[i].classList.toggle('active', i === suggestIndex);
+            }
+            if (items[suggestIndex]) items[suggestIndex].scrollIntoView({ block: 'nearest' });
+        }
+
+        function pickSuggestion(idx) {
+            const row = suggestRows[idx];
+            if (!row) return;
+            document.getElementById('searchInput').value = row.item.name;
+            hideSuggest();
+            renderTable();
+        }
+
+        function pickActiveSuggestion() {
+            if (suggestIndex >= 0 && suggestRows.length) {
+                pickSuggestion(suggestIndex);
+                return true;
+            }
+            return false;
+        }
+
         // ===== 事件監聽 =====
-        document.getElementById('searchInput').addEventListener('input', renderTable);
+        const searchInput = document.getElementById('searchInput');
+
+        searchInput.addEventListener('input', function() {
+            renderSuggestions();
+            renderTable();
+        });
+
+        searchInput.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowDown') { e.preventDefault(); moveSuggest(1); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); moveSuggest(-1); }
+            else if (e.key === 'Enter') {
+                if (pickActiveSuggestion()) e.preventDefault();
+            } else if (e.key === 'Escape') { hideSuggest(); }
+        });
+
+        searchInput.addEventListener('focus', function() {
+            if (searchInput.value.trim()) renderSuggestions();
+        });
+
+        searchInput.addEventListener('blur', function() {
+            setTimeout(hideSuggest, 120);
+        });
+
+        // 用 mousedown 而不是 click，避免輸入框先 blur 導致清單消失、點不到
+        document.getElementById('suggestList').addEventListener('mousedown', function(e) {
+            const item = e.target.closest ? e.target.closest('.suggest-item') : null;
+            if (!item) return;
+            e.preventDefault();
+            pickSuggestion(parseInt(item.dataset.idx, 10));
+        });
+
         document.getElementById('categorySelect').addEventListener('change', renderTable);
 
         document.getElementById('discountInput').addEventListener('input', function(e) {
