@@ -146,7 +146,7 @@
             color: #475569;
         }
         .load-btn:hover { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }
-        .export-btn {
+        .copy-btn {
             padding: 10px 14px;
             border: 1px solid #3b82f6;
             border-radius: 6px;
@@ -155,8 +155,8 @@
             font-size: 15px;
             cursor: pointer;
         }
-        .export-btn:hover { background: #2563eb; border-color: #2563eb; }
-        .export-btn:disabled { background: #cbd5e1; border-color: #cbd5e1; cursor: not-allowed; }
+        .copy-btn:hover { background: #2563eb; border-color: #2563eb; }
+        .copy-btn:disabled { background: #cbd5e1; border-color: #cbd5e1; cursor: not-allowed; }
         .match-hint {
             display: none;
             margin-bottom: 10px;
@@ -276,9 +276,7 @@
                 <button class="mode-btn" data-mode="10+1">10+1</button>
             </div>
 
-            <button class="load-btn" id="pickCsvBtn">載入本機 CSV</button>
-            <button class="export-btn" id="exportCsvBtn">匯出查詢結果 CSV</button>
-            <input type="file" id="csvFileInput" accept=".csv,text/csv" style="display:none">
+            <button class="copy-btn" id="copyBtn">複製查詢結果</button>
         </div>
 
         <div class="match-hint" id="matchHint"></div>
@@ -1059,19 +1057,20 @@
             tbody.innerHTML = html;
         }
 
-        // ===== 匯出查詢結果 CSV =====
-        function csvCell(v) {
-            const s = String(v === null || v === undefined ? '' : v);
-            return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        // ===== 複製查詢結果（Tab 分隔，貼到 Excel／Google 試算表會自動分欄）=====
+        function modeLabel() {
+            if (currentMode === '5+1') return '5+1';
+            if (currentMode === '10+1') return '10+1';
+            return '原價';
         }
 
-        function rowsToCsv(rows) {
+        function rowsToText(rows) {
             const head = [];
             if (hasCategory) head.push('分類');
             head.push('品名規格');
             FACTORIES.forEach(function(f) { head.push(f); });
 
-            const lines = [head.map(csvCell).join(',')];
+            const lines = [head.join('\t')];
             rows.forEach(function(r) {
                 const item = r.item;
                 const cells = [];
@@ -1079,39 +1078,49 @@
                 cells.push(item.name);
                 FACTORIES.forEach(function(f) {
                     const v = calcPrice(item.prices[f]);
-                    cells.push(v === null || v === undefined ? '' : (typeof v === 'number' ? String(v) : v));
+                    cells.push(v === null || v === undefined ? '' : String(v));
                 });
-                lines.push(cells.map(csvCell).join(','));
+                lines.push(cells.join('\t'));
             });
-            return lines.join('\r\n');
+            return lines.join('\n');
         }
 
-        function modeLabel() {
-            if (currentMode === '5+1') return '5+1';
-            if (currentMode === '10+1') return '10+1';
-            return '原價';
+        function copyFallback(text) {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.top = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                const ok = document.execCommand('copy');
+                document.body.removeChild(ta);
+                return !!ok;
+            } catch (e) {
+                return false;
+            }
         }
 
-        function exportCsv() {
+        function copyResults() {
             if (!lastRows.length) {
-                setHint('目前沒有可匯出的品項，請先輸入藥名查詢');
+                setHint('目前沒有可複製的品項，請先輸入藥名查詢');
                 return;
             }
-            const csv = '\uFEFF' + rowsToCsv(lastRows);
-            const t = new Date();
-            const pad = function(n) { return ('0' + n).slice(-2); };
-            const fname = '科學中藥牌價_' + t.getFullYear() + pad(t.getMonth() + 1) + pad(t.getDate()) +
-                '-' + pad(t.getHours()) + pad(t.getMinutes()) + '.csv';
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = fname;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
-            setHint('已匯出 ' + lastRows.length + ' 筆品項（' + modeLabel() + '、折扣 ' + discount + ' 折）→ ' + fname);
+            const text = rowsToText(lastRows);
+            const done = function(ok) {
+                if (ok) {
+                    setHint('已複製 ' + lastRows.length + ' 筆品項（' + modeLabel() + '、折扣 ' + discount +
+                        ' 折）｜可直接貼到 Excel 或 Google 試算表');
+                } else {
+                    setHint('複製失敗：瀏覽器未允許存取剪貼簿，請改用滑鼠選取表格內容複製');
+                }
+            };
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(function() { done(true); }, function() { done(copyFallback(text)); });
+            } else {
+                done(copyFallback(text));
+            }
         }
 
         // ===== 輸入時的品項預選 =====
@@ -1265,26 +1274,7 @@
             });
         });
 
-        document.getElementById('pickCsvBtn').addEventListener('click', function() {
-            document.getElementById('csvFileInput').click();
-        });
-
-        document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
-
-        document.getElementById('csvFileInput').addEventListener('change', function(e) {
-            const file = e.target.files && e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function() {
-                try {
-                    applyCsv(String(reader.result), '本機檔案 ' + file.name, false);
-                } catch (err) {
-                    setStatus('檔案解析失敗：' + err.message, '#dc2626');
-                }
-            };
-            reader.onerror = function() { setStatus('檔案讀取失敗', '#dc2626'); };
-            reader.readAsText(file, 'UTF-8');
-        });
+        document.getElementById('copyBtn').addEventListener('click', copyResults);
 
         // 初始化
         loadData();

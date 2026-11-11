@@ -38,7 +38,7 @@ const api = new Function(
     code + '\nreturn { parseCSV, buildData, parsePrice, calcPrice, renderTable, applyCsv, FACTORIES, ' +
     'normalizeSearchText, splitNameSpec, searchRows, buildSearchIndex, matchBadge, ' +
     'scoreExactTier, scoreFuzzyTier, editSimilarity, levenshteinDistance, uniqueCharMatchScore, SAMPLE_CSV_TEXT, ' +
-    'getSuggestions, escapeHtml, splitQueryTokens, lastTokenInfo, rowsToCsv, csvCell, modeLabel, ' +
+    'getSuggestions, escapeHtml, splitQueryTokens, lastTokenInfo, rowsToText, modeLabel, ' +
     'setState: function(m, d){ currentMode = m; discount = d; } };'
 )(documentStub, fetchStub, AbortController, setTimeout, clearTimeout, function () {});
 
@@ -279,13 +279,8 @@ check('真實表頭：查「乙」有候選', api.getSuggestions('乙').length >
 // 還原成示範資料，避免影響後續手動測試
 api.applyCsv(api.SAMPLE_CSV_TEXT, '內建示範資料', true);
 
-// ---------- 12. 匯出查詢結果 CSV ----------
+// ---------- 12. 複製查詢結果（Tab 分隔文字） ----------
 api.setState('origin', 10);
-check('匯出：csvCell 對逗號加引號', api.csvCell('停售,待通知') === '"停售,待通知"', api.csvCell('停售,待通知'));
-check('匯出：csvCell 對引號轉義', api.csvCell('A"B') === '"A""B"', api.csvCell('A"B'));
-check('匯出：空值輸出空字串', api.csvCell(null) === '' && api.csvCell(undefined) === '');
-check('匯出：換行加引號', api.csvCell('A\nB') === '"A\nB"', api.csvCell('A\nB'));
-
 const fakeItem = {
     category: '複方',
     name: '測試,A',
@@ -293,27 +288,32 @@ const fakeItem = {
     spec: '',
     prices: { '富田': 1000, '仙豐': null, '順天堂': '時價' }
 };
-const fakeCsv = api.rowsToCsv([{ item: fakeItem }]);
-check('匯出：表頭為 分類＋品名規格＋11 廠牌',
-    fakeCsv.split('\r\n')[0] === '分類,品名規格,富田,仙豐,順天堂,科達,莊松榮,勝昌,港香蘭,天明,天一,萬國,國科',
-    fakeCsv.split('\r\n')[0]);
-check('匯出：品名含逗號自動加引號', fakeCsv.indexOf('"測試,A"') !== -1, fakeCsv);
-check('匯出：數字原樣輸出、缺價留空、文字值保留',
-    fakeCsv.indexOf('"測試,A",1000,,時價,') !== -1, fakeCsv.split('\r\n')[1]);
+const fakeText = api.rowsToText([{ item: fakeItem }]);
+const fakeLines = fakeText.split('\n');
+check('複製：表頭為 分類＋品名規格＋11 廠牌（Tab 分隔）',
+    fakeLines[0] === '分類\t品名規格\t富田\t仙豐\t順天堂\t科達\t莊松榮\t勝昌\t港香蘭\t天明\t天一\t萬國\t國科',
+    fakeLines[0]);
+check('複製：欄位數與表頭一致', fakeLines[1].split('\t').length === fakeLines[0].split('\t').length,
+    fakeLines[1]);
+check('複製：數字原樣、缺價留空、文字值保留（Tab 分隔不轉義）',
+    fakeLines[1] === '複方\t測試,A\t1000\t\t時價\t\t\t\t\t\t\t\t', fakeLines[1]);
 
 api.setState('5+1', 10);
-const ex51 = api.rowsToCsv([{ item: fakeItem }]);
-check('匯出：5+1 模式套用買贈換算（1000 → 833）', ex51.indexOf('"測試,A",833,') !== -1, ex51.split('\r\n')[1]);
+check('複製：5+1 模式套用買贈換算（1000 → 833）',
+    api.rowsToText([{ item: fakeItem }]).split('\n')[1].indexOf('\t833\t') !== -1,
+    api.rowsToText([{ item: fakeItem }]).split('\n')[1]);
 
 api.setState('origin', 6);
-const exDisc = api.rowsToCsv([{ item: fakeItem }]);
-check('匯出：6 折套用折扣（1000 → 600）', exDisc.indexOf('"測試,A",600,') !== -1, exDisc.split('\r\n')[1]);
+check('複製：6 折套用折扣（1000 → 600）',
+    api.rowsToText([{ item: fakeItem }]).split('\n')[1].indexOf('\t600\t') !== -1,
+    api.rowsToText([{ item: fakeItem }]).split('\n')[1]);
 api.setState('origin', 10);
+check('複製：模式標籤正確', api.modeLabel() === '原價', api.modeLabel());
 
 const realRows = api.searchRows('桂枝湯');
-const realCsv = api.rowsToCsv(realRows);
-check('匯出：實際查詢結果可整批匯出', realRows.length === 1 && realCsv.split('\r\n').length === 2,
-    'lines=' + realCsv.split('\r\n').length);
+const realText = api.rowsToText(realRows);
+check('複製：實際查詢結果可整批輸出', realRows.length === 1 && realText.split('\n').length === 2,
+    'lines=' + realText.split('\n').length);
 
 console.log('\n===== ' + pass + ' passed, ' + fail + ' failed =====');
 process.exit(fail === 0 ? 0 : 1);
