@@ -146,6 +146,17 @@
             color: #475569;
         }
         .load-btn:hover { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }
+        .export-btn {
+            padding: 10px 14px;
+            border: 1px solid #3b82f6;
+            border-radius: 6px;
+            background: #3b82f6;
+            color: #fff;
+            font-size: 15px;
+            cursor: pointer;
+        }
+        .export-btn:hover { background: #2563eb; border-color: #2563eb; }
+        .export-btn:disabled { background: #cbd5e1; border-color: #cbd5e1; cursor: not-allowed; }
         .match-hint {
             display: none;
             margin-bottom: 10px;
@@ -266,6 +277,7 @@
             </div>
 
             <button class="load-btn" id="pickCsvBtn">載入本機 CSV</button>
+            <button class="export-btn" id="exportCsvBtn">匯出查詢結果 CSV</button>
             <input type="file" id="csvFileInput" accept=".csv,text/csv" style="display:none">
         </div>
 
@@ -334,6 +346,7 @@
 
         let allData = [];
         let hasCategory = true;
+        let lastRows = []; // 目前畫面上（已套用查詢與分類篩選）的品項，匯出時用同一份
         let currentMode = 'origin'; // origin, 5+1, 10+1
         let discount = 10; // 預設10折（無折扣）
 
@@ -951,6 +964,7 @@
 
             // 尚未輸入：首頁不列出全部品項，只顯示提示
             if (tokens.length === 0) {
+                lastRows = [];
                 tbody.innerHTML = '<tr><td colspan="' + colspan + '" class="empty">' +
                     (allData.length ? '請輸入藥品名稱查詢（可一次輸入多筆，用換行、逗號或頓號分隔）' : '資料載入中…') +
                     '</td></tr>';
@@ -1006,6 +1020,7 @@
             });
 
             if (filtered.length === 0) {
+                lastRows = [];
                 tbody.innerHTML = '<tr><td colspan="' + colspan + '" class="empty">' +
                     (notFound.length > 0 && tokens.length > 0 ? '查無「' + escapeHtml(notFound.join('、')) + '」' : '無符合條件的藥品') +
                     '</td></tr>';
@@ -1013,6 +1028,7 @@
             }
 
             let html = '';
+            lastRows = filtered;
             filtered.forEach(function(r) {
                 const item = r.item;
                 const badge = (r.score !== null) ? matchBadge(r.score) : null;
@@ -1041,6 +1057,61 @@
             });
 
             tbody.innerHTML = html;
+        }
+
+        // ===== 匯出查詢結果 CSV =====
+        function csvCell(v) {
+            const s = String(v === null || v === undefined ? '' : v);
+            return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        }
+
+        function rowsToCsv(rows) {
+            const head = [];
+            if (hasCategory) head.push('分類');
+            head.push('品名規格');
+            FACTORIES.forEach(function(f) { head.push(f); });
+
+            const lines = [head.map(csvCell).join(',')];
+            rows.forEach(function(r) {
+                const item = r.item;
+                const cells = [];
+                if (hasCategory) cells.push(item.category);
+                cells.push(item.name);
+                FACTORIES.forEach(function(f) {
+                    const v = calcPrice(item.prices[f]);
+                    cells.push(v === null || v === undefined ? '' : (typeof v === 'number' ? String(v) : v));
+                });
+                lines.push(cells.map(csvCell).join(','));
+            });
+            return lines.join('\r\n');
+        }
+
+        function modeLabel() {
+            if (currentMode === '5+1') return '5+1';
+            if (currentMode === '10+1') return '10+1';
+            return '原價';
+        }
+
+        function exportCsv() {
+            if (!lastRows.length) {
+                setHint('目前沒有可匯出的品項，請先輸入藥名查詢');
+                return;
+            }
+            const csv = '\uFEFF' + rowsToCsv(lastRows);
+            const t = new Date();
+            const pad = function(n) { return ('0' + n).slice(-2); };
+            const fname = '科學中藥牌價_' + t.getFullYear() + pad(t.getMonth() + 1) + pad(t.getDate()) +
+                '-' + pad(t.getHours()) + pad(t.getMinutes()) + '.csv';
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fname;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+            setHint('已匯出 ' + lastRows.length + ' 筆品項（' + modeLabel() + '、折扣 ' + discount + ' 折）→ ' + fname);
         }
 
         // ===== 輸入時的品項預選 =====
@@ -1197,6 +1268,8 @@
         document.getElementById('pickCsvBtn').addEventListener('click', function() {
             document.getElementById('csvFileInput').click();
         });
+
+        document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
 
         document.getElementById('csvFileInput').addEventListener('change', function(e) {
             const file = e.target.files && e.target.files[0];
