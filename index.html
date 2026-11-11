@@ -745,6 +745,12 @@
             }
             setStatus(msg, color);
             renderTable();
+
+            // 若使用者在載入期間已經打了字，載入完成後補上預選清單
+            const si = document.getElementById('searchInput');
+            if (si && si.value && si.value.trim() && document.activeElement === si) {
+                renderSuggestions();
+            }
             return built;
         }
 
@@ -899,6 +905,15 @@
             const rawQuery = document.getElementById('searchInput').value.trim();
             const el = document.getElementById('suggestList');
             if (!normalizeSearchText(rawQuery)) { hideSuggest(); return; }
+
+            // 資料還沒載入完時，明確告知，避免使用者以為清單壞了
+            if (!allData.length) {
+                suggestRows = [];
+                suggestIndex = -1;
+                el.innerHTML = '<div class="suggest-empty">資料載入中，請稍候再輸入…</div>';
+                el.classList.add('show');
+                return;
+            }
 
             const rows = getSuggestions(rawQuery);
             if (!rows.length) {
