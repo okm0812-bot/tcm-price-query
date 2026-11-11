@@ -37,7 +37,7 @@ const api = new Function(
     'document', 'fetch', 'AbortController', 'setTimeout', 'clearTimeout', 'FileReader',
     code + '\nreturn { parseCSV, buildData, parsePrice, calcPrice, renderTable, applyCsv, FACTORIES, ' +
     'normalizeSearchText, splitNameSpec, searchRows, buildSearchIndex, matchBadge, ' +
-    'scoreExactTier, scoreFuzzyTier, editSimilarity, levenshteinDistance, uniqueCharMatchScore, ' +
+    'scoreExactTier, scoreFuzzyTier, editSimilarity, levenshteinDistance, uniqueCharMatchScore, SAMPLE_CSV_TEXT, ' +
     'setState: function(m, d){ currentMode = m; discount = d; } };'
 )(documentStub, fetchStub, AbortController, setTimeout, clearTimeout, function () {});
 
@@ -176,6 +176,11 @@ els.searchInput.value = '六味地黃凡';
 api.renderTable();
 check('低信心單筆 → 顯示相似品項提示', els.matchHint.style.display === 'block' && els.matchHint.textContent.indexOf('查無精確符合') !== -1,
     String(els.matchHint.textContent));
+
+// 內建示範資料（發布成線上網頁、相對路徑 CSV 不存在時的最後備援）
+const inline = api.buildData(api.SAMPLE_CSV_TEXT);
+check('內建示範資料可解析', inline.data.length === 7, 'n=' + inline.data.length);
+check('內建示範資料無缺欄', inline.missing.length === 0, inline.missing.join('、'));
 
 els.searchInput.value = '';
 els.categorySelect.value = '錠劑';

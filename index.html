@@ -227,6 +227,17 @@
         const LOCAL_CSV_URL = 'data.csv';
         // 3) 示範資料（僅供測試畫面與計算，非實際牌價）
         const SAMPLE_CSV_URL = 'sample-data.csv';
+        // 4) 內建示範資料（發布成線上網頁時，相對路徑的 CSV 不存在，用它當最後備援）
+        const SAMPLE_CSV_TEXT = [
+            '分類,品名規格,富田,仙豐,順天堂,科達,莊松榮,勝昌,港香蘭,天明,天一,萬國,國科',
+            '複方,桂枝湯 200g,1200,1350,1280,1100,,1320,,1400,,1250,',
+            '單方,大黃 100g,450,480,460,"停售,待通知",,470,,時價,,,,',
+            '複方,六味地黃丸 200g,1050,1150,1180,1050,,1120,,,1150,,',
+            '錠劑,科學中藥錠劑 1000錠,,,2800,,,2650,,,,,',
+            '丸劑,六味地黃丸 丸劑 500g,890,,,,950,,,,900,,',
+            '單方,炙甘草 100g,380,395,410,,,405,,420,,415,',
+            '複方,炙甘草湯 200g,1150,1280,1220,,,1190,,1260,,1200,'
+        ].join('\n');
 
         const FACTORIES = ['富田', '仙豐', '順天堂', '科達', '莊松榮', '勝昌', '港香蘭', '天明', '天一', '萬國', '國科'];
         const CATEGORY_KEYS = ['分類', '類別', '品類'];
@@ -706,7 +717,8 @@
             const chain = [
                 { url: CSV_URL, label: 'Google 試算表', demo: false, timeout: 6000 },
                 { url: LOCAL_CSV_URL, label: '本地 data.csv', demo: false, timeout: 4000 },
-                { url: SAMPLE_CSV_URL, label: 'sample-data.csv', demo: true, timeout: 4000 }
+                { url: SAMPLE_CSV_URL, label: 'sample-data.csv', demo: true, timeout: 4000 },
+                { text: SAMPLE_CSV_TEXT, label: '內建示範資料', demo: true }
             ];
 
             let i = 0;
@@ -721,6 +733,10 @@
                     return;
                 }
                 const src = chain[i++];
+                if (src.text) {
+                    applyCsv(src.text, src.label, src.demo);
+                    return;
+                }
                 tryLoad(src.url, src.timeout).then(function(text) {
                     applyCsv(text, src.label, src.demo);
                 }).catch(function(err) {

@@ -4,10 +4,12 @@
 
 ## 線上版
 
-- 網址：<https://okm0812-bot.github.io/tcm-price-query/>
+- 網頁應用（豆包托管，已發布）：<https://4mfy05rf84d60.doubao.link/app/app_17hun0k7wmp>
+- GitHub Pages：<https://okm0812-bot.github.io/tcm-price-query/>
 - Repo：<https://github.com/okm0812-bot/tcm-price-query>
 
-上線後若 Google 試算表仍未公開，頁面會退回 repo 內的 `sample-data.csv`（狀態列以紅字標示非實際牌價）。
+上線後若 Google 試算表仍未公開，頁面會退回 `sample-data.csv`；網頁應用版沒有相對路徑檔案，
+會再退回程式內建的示範資料（狀態列以紅字標示非實際牌價）。
 要讓線上版顯示真實資料，把匯出的 CSV 改名為 `data.csv` 一起 commit 推上去即可。
 
 ## 檔案說明
@@ -18,7 +20,7 @@
 | `sample-data.csv` | 示範資料，僅用於驗證畫面與計算，**非實際牌價** |
 | `data.csv` | 你自己的實際資料（需自行放入，見下方「資料來源」） |
 | `start.bat` | 本機測試用：啟動僅綁定 127.0.0.1 的靜態伺服器並開啟瀏覽器 |
-| `verify.js` | 邏輯驗證腳本（`node verify.js`，25 項檢查） |
+| `verify.js` | 邏輯驗證腳本（`node verify.js`，62 項檢查） |
 
 ## 使用方式
 
