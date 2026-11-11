@@ -49,7 +49,7 @@ const api = new Function(
     'scoreExactTier, scoreFuzzyTier, editSimilarity, levenshteinDistance, uniqueCharMatchScore, SAMPLE_CSV_TEXT, ' +
     'getSuggestions, escapeHtml, splitQueryTokens, lastTokenInfo, rowsToText, modeLabel, ' +
     'mergeSheets, SHEETS, commitData, runQuery, addSelected, addSelectedByName, removeSelected, ' +
-    'clearSelected, renderChips, findItem, clearAll, ' +
+    'clearSelected, renderChips, findItem, clearAll, renderTable, specNoteText, ' +
     'getQueryRows: function() { return queryRows; }, ' +
     'getSelected: function() { return selectedItems.slice(); }, ' +
     'getDiscount: function() { return discount; }, ' +
@@ -513,6 +513,59 @@ check('合併後可查到丸劑品項（左歸丸）',
 check('合併後可查到錠劑品項（加味逍遙散）', api.searchRows('加味逍遙散').length >= 1);
 check('合併後分類篩選可運作',
     api.searchRows('六味地黃丸').every(function(r) { return r.item.category === '丸劑'; }));
+
+// ---------- 15. 使用者情境（空白分隔／分類提示／規格提醒）----------
+api.applyCsv(api.SAMPLE_CSV_TEXT, '內建示範資料', true);
+check('空白分隔：兩個完整藥名各自命中',
+    api.searchRows('桂枝湯').length === 1 && api.searchRows('炙甘草湯')[0].score >= 9000);
+check('空白分隔：含規格的品項不會被拆成兩筆',
+    api.searchRows('桂枝湯 200g').length === 1 &&
+    api.searchRows('桂枝湯 200g')[0].item.name === '桂枝湯 200g',
+    api.searchRows('桂枝湯 200g').length + ' 筆');
+
+api.setState('origin', 10);
+api.clearSelected();
+els.searchInput.value = '桂枝湯 炙甘草湯';
+api.runQuery();
+check('空白分隔：貼「桂枝湯 炙甘草湯」按查詢會列出 2 筆',
+    api.getQueryRows().length === 2 && api.getSelected().length === 2,
+    'rows=' + api.getQueryRows().length);
+
+api.clearSelected();
+els.searchInput.value = '桂枝湯 200g';
+api.runQuery();
+check('空白分隔：貼「桂枝湯 200g」仍只有 1 筆（規格被保留）',
+    api.getQueryRows().length === 1 &&
+    api.getSelected()[0].name === '桂枝湯 200g',
+    api.getSelected().map(function(x) { return x.name; }).join('/'));
+
+// 分類切換後的提示要跟著更新
+api.clearSelected();
+els.searchInput.value = '桂枝湯 200g\n大黃 100g';
+api.runQuery();
+els.categorySelect.value = '單方';
+api.renderTable();
+check('分類提示：切到單方時提示寫出篩選筆數',
+    els.matchHint.textContent.indexOf('分類「單方」：1 / 2 筆') !== -1,
+    els.matchHint.textContent);
+els.categorySelect.value = '錠劑';
+api.renderTable();
+check('分類提示：該分類沒有品項時講清楚「沒有已選的品項」',
+    els.matchHint.textContent.indexOf('沒有已選的品項') !== -1,
+    els.matchHint.textContent);
+check('分類提示：切回全部分類會還原原本提示',
+    (function() {
+        els.categorySelect.value = 'all';
+        api.renderTable();
+        return els.matchHint.textContent.indexOf('已列出 2 筆品項') !== -1;
+    })(), els.matchHint.textContent);
+
+// 各廠規格不同時的提醒（錠劑 500 錠 vs 300 錠）
+const specText = api.specNoteText(pill.data[0]);
+check('規格提醒：錠劑 500 錠與 300 錠不同會提醒',
+    specText.indexOf('500錠') !== -1 && specText.indexOf('300錠') !== -1, specText);
+check('規格提醒：規格一致（丸劑只有勝昌）不顯示',
+    api.specNoteText(wan.data[0]) === '', api.specNoteText(wan.data[0]));
 
 // 還原成示範資料
 api.applyCsv(api.SAMPLE_CSV_TEXT, '內建示範資料', true);

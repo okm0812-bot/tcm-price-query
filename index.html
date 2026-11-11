@@ -349,6 +349,14 @@
             background: #f8fafc;
         }
         #searchInput:focus { background: #fff; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, .12); }
+        /* 候選清單改成「往下推版面」而不是浮在按鈕上，避免蓋住「查詢」導致點錯 */
+        .suggest-list {
+            position: static;
+            margin-top: 8px;
+            max-height: 260px;
+            border-radius: 12px;
+            box-shadow: none;
+        }
         .control-row { display: flex; align-items: center; gap: 10px; }
         .discount-wrap { display: flex; align-items: center; gap: 6px; font-size: 14px; color: #475569; }
         .discount-input {
@@ -443,6 +451,16 @@
         .price-cell.gift { background: #eff6ff; }
         .price-cell.gift .v { color: #1d4ed8; }
         .item-more { margin-top: 8px; font-size: 12px; color: #94a3b8; }
+        .item-spec {
+            margin-top: 8px;
+            padding: 6px 8px;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #92400e;
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            border-radius: 8px;
+        }
         @media (min-width: 480px) {
             .price-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         }
@@ -578,6 +596,7 @@
         let selectedItems = []; // 使用者從候選清單點選的品項（查詢清單）
         let queryRows = null;   // 上次按「查詢」的結果；null 表示還沒查過
         let queryState = { notFound: [], ambiguous: [] };
+        let lastQueryHint = '';  // 上一次按「查詢」算出的完整提示（切換分類時要還原）
         let discount = 10; // 預設10折（無折扣）
         // 每家廠商各自的搭贈方式：'origin'（原價，不套搭贈）／'5+1'／'10+1'
         let factoryModes = {};
@@ -1004,6 +1023,14 @@
 
             const missing = FACTORIES.filter(function(f) { return !cols[f] || cols[f].length === 0; });
 
+            // 各廠規格（錠數／克數）通常寫在廠牌表頭後面，例如「富田 2026.11.01價格 500錠」
+            const factorySpecs = {};
+            FACTORIES.forEach(function(f) {
+                if (!cols[f] || !cols[f].length) return;
+                const m = String(cols[f][0].label).match(SPEC_REG);
+                if (m) factorySpecs[f] = m[1].replace(/\s+/g, '');
+            });
+
             const data = rows.slice(hi + 1).map(function(r) {
                 const priceObj = {};
                 FACTORIES.forEach(function(f) {
@@ -1030,6 +1057,7 @@
                     name: name.replace(/\s+/g, ' ').trim(),
                     core: parts.core,
                     spec: parts.spec,
+                    factorySpecs: factorySpecs,
                     prices: priceObj
                 };
             }).filter(function(item) { return item.name !== ''; });
@@ -1338,8 +1366,49 @@
             setHint(factory + '：' + (mode === 'origin' ? '原價' : mode) + '（' + modeHint(mode) + '）');
         }
 
+        // 分類篩選後要顯示的提示：說清楚「篩選後剩幾筆」與原本的完整提示
+        function filteredHint(category, total, shown) {
+            if (category === 'all') return lastQueryHint || '';
+            const head = shown === 0
+                ? '分類「' + category + '」沒有已選的品項（已選 ' + total + ' 筆在其他分類）'
+                : '分類「' + category + '」：' + shown + ' / ' + total + ' 筆';
+            return lastQueryHint ? head + '｜' + lastQueryHint : head;
+        }
+
         // 只渲染「按查詢」之後的結果；打字階段不再即時列出大量品項
         // 折扣、分類、各廠搭贈變動時也走這裡，用同一份查詢結果重算
+        // 各廠規格（錠數／克數）不同時提醒，避免拿 500 錠的價跟 300 錠的價直接比
+        function specGroupsOf(item) {
+            const specs = item.factorySpecs || {};
+            const groups = {};
+            FACTORIES.forEach(function(f) {
+                const s = specs[f];
+                if (!s) return;
+                const v = item.prices[f];
+                if (v === null || v === undefined || v === '') return;  // 沒列價的廠不用提
+                if (!groups[s]) groups[s] = [];
+                groups[s].push(f);
+            });
+            const keys = Object.keys(groups);
+            return keys.length >= 2 ? keys.map(function(s) { return { spec: s, factories: groups[s] }; }) : [];
+        }
+
+        function specNoteHtml(item) {
+            const groups = specGroupsOf(item);
+            if (!groups.length) return '';
+            return '<div class="item-spec">各廠規格不同：' + groups.map(function(g) {
+                return g.spec + '（' + g.factories.join('、') + '）';
+            }).join('；') + '</div>';
+        }
+
+        function specNoteText(item) {
+            const groups = specGroupsOf(item);
+            if (!groups.length) return '';
+            return '各廠規格不同：' + groups.map(function(g) {
+                return g.spec + '（' + g.factories.join('、') + '）';
+            }).join('；');
+        }
+
         function renderTable() {
             const category = document.getElementById('categorySelect').value;
             const list = document.getElementById('resultList');
@@ -1347,6 +1416,7 @@
 
             if (queryRows === null) {
                 lastRows = [];
+                lastQueryHint = '';
                 list.innerHTML = '<div class="result-empty">' +
                     (allData.length
                         ? '輸入藥名 → 從候選清單點選品項 → 按「查詢」列出結果（可一次多筆）'
@@ -1374,6 +1444,7 @@
                     msg = '目前分類下沒有符合的品項';
                 }
                 list.innerHTML = '<div class="result-empty">' + msg + '</div>';
+                setHint(filteredHint(category, queryRows.length, 0));
                 return;
             }
 
@@ -1419,6 +1490,7 @@
                 });
 
                 html += '</div>';
+                html += specNoteHtml(item);
                 if (emptyCount === FACTORIES.length) {
                     html += '<div class="item-more">此品項各廠皆未列價</div>';
                 } else if (emptyCount > 0) {
@@ -1428,6 +1500,7 @@
             });
 
             list.innerHTML = html;
+            setHint(filteredHint(category, queryRows.length, filtered.length));
         }
 
         // ===== 複製查詢結果（LINE 好讀的區塊格式：每家廠牌並排對齊）=====
@@ -1483,6 +1556,8 @@
                 const lines = [title];
                 const summary = modeSummary();
                 if (summary !== '全部原價') lines.push('（搭贈：' + summary + '）');
+                const specNote = specNoteText(item);
+                if (specNote) lines.push('（' + specNote + '）');
                 for (let i = 0; i < cells.length; i += CELL_PER_LINE) {
                     lines.push(cells.slice(i, i + CELL_PER_LINE).join('\u3000'));
                 }
@@ -1719,7 +1794,20 @@
         function runQuery() {
             hideSuggest();
             const input = document.getElementById('searchInput');
-            const tokens = splitQueryTokens(input.value);
+            const rawTokens = splitQueryTokens(input.value);
+            // 「乙字湯 桂枝湯」這種用空白隔開的多筆：每個片段都各自命中時才拆開，
+            // 否則保留原字串（例如「桂枝湯 200g」的規格不能被拆掉）
+            const tokens = [];
+            rawTokens.forEach(function(t) {
+                if (!/\s/.test(t)) { tokens.push(t); return; }
+                const parts = t.split(/\s+/).filter(function(p) { return p.length >= 2; });
+                const allHit = parts.length >= 2 && parts.every(function(p) {
+                    const h = searchRows(p);
+                    return h.length > 0 && h[0].score >= 9000;
+                });
+                if (allHit) parts.forEach(function(p) { tokens.push(p); });
+                else tokens.push(t);
+            });
             const notFound = [];
             const ambiguous = [];
             const scoreByKey = {};
@@ -1754,9 +1842,6 @@
             // 已自動帶入的文字從輸入框移除；還沒選的（多筆符合、查無）留在框裡讓使用者處理
             input.value = ambiguous.map(function(a) { return a.token; }).join('\n');
 
-            renderChips();
-            renderTable();
-
             const parts = [];
             if (queryRows.length > 0) parts.push('已列出 ' + queryRows.length + ' 筆品項');
             if (ambiguous.length > 0) {
@@ -1770,7 +1855,11 @@
             if (queryRows.length === 0 && ambiguous.length === 0 && notFound.length === 0) {
                 parts.push('請先輸入藥名並點選候選品項');
             }
-            setHint(parts.join('｜'));
+            lastQueryHint = parts.join('｜');
+
+            renderChips();
+            renderTable();
+            setHint(lastQueryHint);
         }
 
         // ===== 事件監聽 =====
@@ -1812,6 +1901,8 @@
             const v = parseFloat(e.target.value);
             discount = (isNaN(v) || v <= 0) ? 10 : Math.min(v, 10);
             renderTable();
+            // 輸入 0 或空白時仍以 10 折計算，講明避免使用者以為套用了 0 折
+            if (isNaN(v) || v <= 0) setHint('折扣請輸入 1～10（目前以 10 折計算）');
         });
 
         // 搭贈面板的每廠 select 由 buildGiftPanel() 綁定（見 setFactoryMode）
