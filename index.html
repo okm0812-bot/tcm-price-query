@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>科學中藥各廠價格查詢系統</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: "Microsoft JhengHei", "PingFang TC", sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            padding: 20px;
+            line-height: 1.5;
+        }
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            padding: 24px;
+        }
+        h1 {
+            text-align: center;
+            color: #1f2d3d;
+            margin-bottom: 20px;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .control-panel {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+            padding: 16px;
+            background: #f8fafc;
+            border-radius: 6px;
+        }
+        #searchInput {
+            flex: 1;
+            min-width: 240px;
+            padding: 10px 14px;
+            border: 1px solid #dcdfe6;
+            border-radius: 6px;
+            font-size: 16px;
+            outline: none;
+        }
+        #searchInput:focus { border-color: #3b82f6; }
+        select, .discount-input {
+            padding: 10px 14px;
+            border: 1px solid #dcdfe6;
+            border-radius: 6px;
+            font-size: 16px;
+            background: #fff;
+            cursor: pointer;
+        }
+        .mode-group {
+            display: flex;
+            border: 1px solid #dcdfe6;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .mode-btn {
+            padding: 10px 16px;
+            border: none;
+            background: #fff;
+            cursor: pointer;
+            font-size: 15px;
+            border-right: 1px solid #dcdfe6;
+            transition: all 0.2s;
+        }
+        .mode-btn:last-child { border-right: none; }
+        .mode-btn.active { background: #3b82f6; color: #fff; }
+        .mode-btn:hover:not(.active) { background: #eff6ff; }
+        .discount-wrap { display: flex; align-items: center; gap: 8px; }
+        .discount-input { width: 80px; text-align: center; cursor: text; }
+        .load-btn {
+            padding: 10px 14px;
+            border: 1px solid #dcdfe6;
+            border-radius: 6px;
+            background: #fff;
+            font-size: 15px;
+            cursor: pointer;
+            color: #475569;
+        }
+        .load-btn:hover { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }
+        .table-wrap { overflow-x: auto; border: 1px solid #ebeef5; border-radius: 6px; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; white-space: nowrap; }
+        th, td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid #ebeef5;
+            border-right: 1px solid #ebeef5;
+        }
+        th:last-child, td:last-child { border-right: none; }
+        th {
+            background-color: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        tr:hover { background-color: #f1f5f9; }
+        tr:nth-child(even) { background-color: #f8fafc; }
+        tr:nth-child(even):hover { background-color: #f1f5f9; }
+        .price-num { font-variant-numeric: tabular-nums; text-align: right; }
+        .no-price { color: #cbd5e1; text-align: center; }
+        .text-value { color: #f59e0b; font-size: 13px; }
+        .empty { text-align: center; padding: 48px; color: #94a3b8; font-size: 15px; }
+        .footer-note {
+            margin-top: 16px;
+            font-size: 12px;
+            color: #64748b;
+            text-align: right;
+        }
+        .status-note {
+            margin-top: 6px;
+            font-size: 12px;
+            color: #94a3b8;
+            text-align: right;
+        }
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .container { padding: 16px; }
+            h1 { font-size: 20px; }
+            .control-panel { gap: 8px; padding: 12px; }
+            th, td { padding: 8px 10px; font-size: 13px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>科學中藥各廠牌價格查詢系統</h1>
+
+        <div class="control-panel">
+            <input type="text" id="searchInput" placeholder="請輸入藥品名稱搜尋（例如：桂枝湯、六味地黃丸）">
+
+            <select id="categorySelect">
+                <option value="all">全部分類</option>
+                <option value="複方">複方</option>
+                <option value="單方">單方</option>
+                <option value="錠劑">錠劑</option>
+                <option value="丸劑">丸劑</option>
+            </select>
+
+            <div class="discount-wrap">
+                <span>折扣：</span>
+                <input type="number" id="discountInput" class="discount-input" value="10" min="1" max="10" step="0.5">
+                <span>折</span>
+            </div>
+
+            <div class="mode-group">
+                <button class="mode-btn active" data-mode="origin">原價</button>
+                <button class="mode-btn" data-mode="5+1">5+1</button>
+                <button class="mode-btn" data-mode="10+1">10+1</button>
+            </div>
+
+            <button class="load-btn" id="pickCsvBtn">載入本機 CSV</button>
+            <input type="file" id="csvFileInput" accept=".csv,text/csv" style="display:none">
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>分類</th>
+                        <th>品名規格</th>
+                        <th>富田</th>
+                        <th>仙豐</th>
+                        <th>順天堂</th>
+                        <th>科達</th>
+                        <th>莊松榮</th>
+                        <th>勝昌</th>
+                        <th>港香蘭</th>
+                        <th>天明</th>
+                        <th>天一</th>
+                        <th>萬國</th>
+                        <th>國科</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <tr><td colspan="13" class="empty">資料載入中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="footer-note">
+            ※ 5+1 = 買5送1（單價 = 原價 × 5/6）；10+1 = 買10送1（單價 = 原價 × 10/11）；可與折扣疊加計算<br>
+            ※ 價格來源：Google 試算表，空白表示該廠無此品項或未列價
+        </div>
+        <div class="status-note" id="statusNote"></div>
+    </div>
+
+    <script>
+        // ===== 資料來源 =====
+        // 1) Google 試算表 CSV（主要來源，更新價格只需改試算表）
+        const CSV_URL = 'https://docs.google.com/spreadsheets/d/1FZUoXIzkiQ1cef2juAEwkObSNH-sPTSE/export?format=csv&gid=0';
+        // 2) 本機 CSV 備援（把試算表另存成 CSV，放在同目錄並命名 data.csv）
+        const LOCAL_CSV_URL = 'data.csv';
+        // 3) 示範資料（僅供測試畫面與計算，非實際牌價）
+        const SAMPLE_CSV_URL = 'sample-data.csv';
+
+        const FACTORIES = ['富田', '仙豐', '順天堂', '科達', '莊松榮', '勝昌', '港香蘭', '天明', '天一', '萬國', '國科'];
+        const CATEGORY_KEYS = ['分類', '類別', '品類'];
+        const NAME_KEYS = ['品名規格', '品名', '品名/規格', '品項'];
+
+        let allData = [];
+        let currentMode = 'origin'; // origin, 5+1, 10+1
+        let discount = 10; // 預設10折（無折扣）
+
+        // ===== CSV 解析（內建，不依賴 CDN）=====
+        function parseCSV(text) {
+            if (!text) return [];
+            text = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+            const rows = [];
+            let row = [];
+            let field = '';
+            let inQuotes = false;
+
+            for (let i = 0; i < text.length; i++) {
+                const c = text[i];
+
+                if (inQuotes) {
+                    if (c === '"') {
+                        if (text[i + 1] === '"') { field += '"'; i++; }
+                        else { inQuotes = false; }
+                    } else {
+                        field += c;
+                    }
+                    continue;
+                }
+
+                if (c === '"') {
+                    inQuotes = true;
+                } else if (c === ',') {
+                    row.push(field); field = '';
+                } else if (c === '\n') {
+                    row.push(field); field = '';
+                    rows.push(row); row = [];
+                } else {
+                    field += c;
+                }
+            }
+            if (field !== '' || row.length > 0) { row.push(field); rows.push(row); }
+            return rows;
+        }
+
+        // 找出表頭列（容忍試算表上方有標題列）
+        function findHeaderIndex(rows) {
+            const limit = Math.min(rows.length, 10);
+            for (let i = 0; i < limit; i++) {
+                const cells = rows[i].map(function(c) { return String(c).replace(/^\uFEFF/, '').trim(); });
+                const hasName = cells.some(function(c) { return NAME_KEYS.indexOf(c) !== -1; });
+                const hasFactory = cells.filter(function(c) { return FACTORIES.indexOf(c) !== -1; }).length >= 2;
+                if (hasName && hasFactory) return i;
+            }
+            return 0;
+        }
+
+        // 把 CSV 文字轉成資料陣列
+        function buildData(csvText) {
+            const rows = parseCSV(csvText);
+            if (rows.length === 0) return { data: [], missing: FACTORIES, head: [] };
+
+            const hi = findHeaderIndex(rows);
+            const head = rows[hi].map(function(h) { return String(h).replace(/^\uFEFF/, '').trim(); });
+
+            const catIdx = head.findIndex(function(h) { return CATEGORY_KEYS.indexOf(h) !== -1; });
+            const nameIdx = head.findIndex(function(h) { return NAME_KEYS.indexOf(h) !== -1; });
+            const factoryIdx = {};
+            FACTORIES.forEach(function(f) { factoryIdx[f] = head.indexOf(f); });
+
+            const missing = FACTORIES.filter(function(f) { return factoryIdx[f] === -1; });
+
+            const data = rows.slice(hi + 1).map(function(r) {
+                const priceObj = {};
+                FACTORIES.forEach(function(f) {
+                    priceObj[f] = factoryIdx[f] === -1 ? null : parsePrice(r[factoryIdx[f]]);
+                });
+                return {
+                    category: catIdx === -1 ? '' : String(r[catIdx] || '').trim(),
+                    name: nameIdx === -1 ? '' : String(r[nameIdx] || '').trim(),
+                    prices: priceObj
+                };
+            }).filter(function(item) { return item.name !== ''; });
+
+            return { data: data, missing: missing, head: head };
+        }
+
+        // 解析價格，非數字保留原文
+        function parsePrice(value) {
+            if (value === null || value === undefined) return null;
+            if (typeof value === 'number') return value;
+            if (typeof value !== 'string') return null;
+            if (value.trim() === '') return null;
+            const clean = value.replace(/,/g, '').trim();
+            const num = Number(clean);
+            if (!isNaN(num) && clean !== '') return num;
+            return value.trim(); // 非數字（停售、時價等）保留原文
+        }
+
+        // 價格計算函數：先折扣、再買贈
+        function calcPrice(originalPrice) {
+            if (!originalPrice || typeof originalPrice !== 'number') {
+                return originalPrice;
+            }
+
+            let price = originalPrice;
+            price = price * (discount / 10);
+            if (currentMode === '5+1') {
+                price = price * 5 / 6;
+            } else if (currentMode === '10+1') {
+                price = price * 10 / 11;
+            }
+            return Math.round(price);
+        }
+
+        // ===== 載入流程 =====
+        function setStatus(msg, color) {
+            const note = document.getElementById('statusNote');
+            note.textContent = msg;
+            note.style.color = color || '#94a3b8';
+        }
+
+        function applyCsv(csvText, sourceLabel, isDemo) {
+            const built = buildData(csvText);
+            allData = built.data;
+
+            let msg = '資料來源：' + sourceLabel + '｜已載入 ' + allData.length + ' 筆品項';
+            let color = '#94a3b8';
+            if (built.missing.length > 0) {
+                msg += '｜試算表缺少欄位：' + built.missing.join('、');
+                color = '#dc2626';
+            }
+            if (isDemo) {
+                msg = '⚠ ' + msg + '（示範資料，非實際牌價）';
+                color = '#dc2626';
+            }
+            setStatus(msg, color);
+            renderTable();
+            return built;
+        }
+
+        function fetchText(url, timeoutMs) {
+            return new Promise(function(resolve, reject) {
+                const ctrl = new AbortController();
+                const timer = setTimeout(function() { ctrl.abort(); }, timeoutMs);
+                fetch(url, { cache: 'no-store', signal: ctrl.signal })
+                    .then(function(res) {
+                        if (!res.ok) throw new Error('HTTP ' + res.status);
+                        return res.text();
+                    })
+                    .then(function(text) { clearTimeout(timer); resolve(text); })
+                    .catch(function(err) { clearTimeout(timer); reject(err); });
+            });
+        }
+
+        function tryLoad(url, timeoutMs) {
+            return fetchText(url, timeoutMs).then(function(text) {
+                if (!text || text.trim() === '') throw new Error('空檔案');
+                return text;
+            });
+        }
+
+        function loadData() {
+            const chain = [
+                { url: CSV_URL, label: 'Google 試算表', demo: false, timeout: 6000 },
+                { url: LOCAL_CSV_URL, label: '本地 data.csv', demo: false, timeout: 4000 },
+                { url: SAMPLE_CSV_URL, label: 'sample-data.csv', demo: true, timeout: 4000 }
+            ];
+
+            let i = 0;
+            const failures = [];
+
+            function next() {
+                if (i >= chain.length) {
+                    document.getElementById('tableBody').innerHTML =
+                        '<tr><td colspan="13" class="empty">資料讀取失敗：無法連上 Google 試算表，且找不到本地 CSV。<br>' +
+                        '請將試算表「檔案 → 下載 → CSV」後放到同目錄命名為 data.csv，或按上方「載入本機 CSV」直接選檔。</td></tr>';
+                    setStatus('載入失敗｜' + failures.join('；'), '#dc2626');
+                    return;
+                }
+                const src = chain[i++];
+                tryLoad(src.url, src.timeout).then(function(text) {
+                    applyCsv(text, src.label, src.demo);
+                }).catch(function(err) {
+                    failures.push(src.label + ' ' + (err && err.name === 'AbortError' ? '逾時' : (err.message || '失敗')));
+                    next();
+                });
+            }
+            next();
+        }
+
+        // ===== 渲染表格 =====
+        function renderTable() {
+            const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
+            const category = document.getElementById('categorySelect').value;
+
+            const filtered = allData.filter(function(item) {
+                const matchCategory = category === 'all' || item.category === category;
+                const matchKeyword = item.name.toLowerCase().indexOf(keyword) !== -1;
+                return matchCategory && matchKeyword;
+            });
+
+            const tbody = document.getElementById('tableBody');
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="13" class="empty">無符合條件的藥品</td></tr>';
+                return;
+            }
+
+            let html = '';
+            filtered.forEach(function(item) {
+                html += '<tr>' +
+                    '<td>' + item.category + '</td>' +
+                    '<td>' + item.name + '</td>';
+
+                FACTORIES.forEach(function(factory) {
+                    const raw = item.prices[factory];
+                    const calculated = calcPrice(raw);
+
+                    if (calculated === null || calculated === undefined || calculated === '') {
+                        html += '<td class="no-price">-</td>';
+                    } else if (typeof calculated === 'number') {
+                        html += '<td class="price-num">' + calculated.toLocaleString() + '</td>';
+                    } else {
+                        html += '<td class="text-value">' + calculated + '</td>';
+                    }
+                });
+
+                html += '</tr>';
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        // ===== 事件監聽 =====
+        document.getElementById('searchInput').addEventListener('input', renderTable);
+        document.getElementById('categorySelect').addEventListener('change', renderTable);
+
+        document.getElementById('discountInput').addEventListener('input', function(e) {
+            const v = parseFloat(e.target.value);
+            discount = (isNaN(v) || v <= 0) ? 10 : Math.min(v, 10);
+            renderTable();
+        });
+
+        document.querySelectorAll('.mode-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.mode-btn').forEach(function(b) { b.classList.remove('active'); });
+                btn.classList.add('active');
+                currentMode = btn.dataset.mode;
+                renderTable();
+            });
+        });
+
+        document.getElementById('pickCsvBtn').addEventListener('click', function() {
+            document.getElementById('csvFileInput').click();
+        });
+
+        document.getElementById('csvFileInput').addEventListener('change', function(e) {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function() {
+                try {
+                    applyCsv(String(reader.result), '本機檔案 ' + file.name, false);
+                } catch (err) {
+                    setStatus('檔案解析失敗：' + err.message, '#dc2626');
+                }
+            };
+            reader.onerror = function() { setStatus('檔案讀取失敗', '#dc2626'); };
+            reader.readAsText(file, 'UTF-8');
+        });
+
+        // 初始化
+        loadData();
+    </script>
+</body>
+</html>
