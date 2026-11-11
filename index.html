@@ -1057,32 +1057,53 @@
             tbody.innerHTML = html;
         }
 
-        // ===== 複製查詢結果（Tab 分隔，貼到 Excel／Google 試算表會自動分欄）=====
+        // ===== 複製查詢結果（LINE 好讀的區塊格式：每家廠牌並排對齊）=====
+        const CELL_PER_LINE = 2;   // 每行放幾家廠牌（手機 LINE 寬度不會折行）
+        const NAME_WIDTH = 3;      // 廠牌名稱欄寬（以全角字為單位）
+        const PRICE_WIDTH = 4;     // 價格欄寬（右靠，數字位數不同也能對齊）
+
         function modeLabel() {
             if (currentMode === '5+1') return '5+1';
             if (currentMode === '10+1') return '10+1';
             return '原價';
         }
 
-        function rowsToText(rows) {
-            const head = [];
-            if (hasCategory) head.push('分類');
-            head.push('品名規格');
-            FACTORIES.forEach(function(f) { head.push(f); });
+        // 廠牌名補全角空格到固定寬度，讓價格起始位置對齊
+        function padName(name) {
+            let s = String(name);
+            while (s.length < NAME_WIDTH) s += '\u3000';
+            return s;
+        }
 
-            const lines = [head.join('\t')];
+        // 價格右靠到固定寬度，3 位數與 4 位數（或「時價」）都能左右對齊
+        function padPrice(v) {
+            let s = String(v);
+            while (s.length < PRICE_WIDTH) s = ' ' + s;
+            return s;
+        }
+
+        function rowsToText(rows) {
+            const blocks = [];
             rows.forEach(function(r) {
                 const item = r.item;
+                const title = hasCategory && item.category
+                    ? item.name + '（' + item.category + '）'
+                    : item.name;
+
                 const cells = [];
-                if (hasCategory) cells.push(item.category);
-                cells.push(item.name);
                 FACTORIES.forEach(function(f) {
                     const v = calcPrice(item.prices[f]);
-                    cells.push(v === null || v === undefined ? '' : String(v));
+                    if (v === null || v === undefined || v === '') return; // 無價廠牌不列，讀起來更清爽
+                    cells.push(padName(f) + ' ' + padPrice(v));
                 });
-                lines.push(cells.join('\t'));
+
+                const lines = [title];
+                for (let i = 0; i < cells.length; i += CELL_PER_LINE) {
+                    lines.push(cells.slice(i, i + CELL_PER_LINE).join('\u3000'));
+                }
+                blocks.push(lines.join('\n'));
             });
-            return lines.join('\n');
+            return blocks.join('\n\n');
         }
 
         function copyFallback(text) {
@@ -1110,7 +1131,7 @@
             const done = function(ok) {
                 if (ok) {
                     setHint('已複製 ' + lastRows.length + ' 筆品項（' + modeLabel() + '、折扣 ' + discount +
-                        ' 折）｜可直接貼到 Excel 或 Google 試算表');
+                        ' 折）｜格式已排好，可直接貼到 LINE 或記事本');
                 } else {
                     setHint('複製失敗：瀏覽器未允許存取剪貼簿，請改用滑鼠選取表格內容複製');
                 }

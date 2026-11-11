@@ -279,7 +279,7 @@ check('真實表頭：查「乙」有候選', api.getSuggestions('乙').length >
 // 還原成示範資料，避免影響後續手動測試
 api.applyCsv(api.SAMPLE_CSV_TEXT, '內建示範資料', true);
 
-// ---------- 12. 複製查詢結果（Tab 分隔文字） ----------
+// ---------- 12. 複製查詢結果（LINE 好讀區塊格式） ----------
 api.setState('origin', 10);
 const fakeItem = {
     category: '複方',
@@ -290,30 +290,35 @@ const fakeItem = {
 };
 const fakeText = api.rowsToText([{ item: fakeItem }]);
 const fakeLines = fakeText.split('\n');
-check('複製：表頭為 分類＋品名規格＋11 廠牌（Tab 分隔）',
-    fakeLines[0] === '分類\t品名規格\t富田\t仙豐\t順天堂\t科達\t莊松榮\t勝昌\t港香蘭\t天明\t天一\t萬國\t國科',
-    fakeLines[0]);
-check('複製：欄位數與表頭一致', fakeLines[1].split('\t').length === fakeLines[0].split('\t').length,
-    fakeLines[1]);
-check('複製：數字原樣、缺價留空、文字值保留（Tab 分隔不轉義）',
-    fakeLines[1] === '複方\t測試,A\t1000\t\t時價\t\t\t\t\t\t\t\t', fakeLines[1]);
+check('複製：第一行為品名（示範資料帶分類）', fakeLines[0] === '測試,A（複方）', fakeLines[0]);
+check('複製：無價廠牌不列出', fakeText.indexOf('仙豐') === -1, fakeText);
+check('複製：有價廠牌排成一行', fakeLines.length === 2, 'lines=' + fakeLines.length);
+check('複製：名稱以全角空格補齊欄寬（富田 → 3 字寬）',
+    fakeLines[1].indexOf('富田\u3000') === 0, fakeLines[1]);
+check('複製：數字與文字值都保留', fakeLines[1].indexOf('1000') !== -1 && fakeLines[1].indexOf('時價') !== -1, fakeLines[1]);
 
 api.setState('5+1', 10);
 check('複製：5+1 模式套用買贈換算（1000 → 833）',
-    api.rowsToText([{ item: fakeItem }]).split('\n')[1].indexOf('\t833\t') !== -1,
-    api.rowsToText([{ item: fakeItem }]).split('\n')[1]);
+    api.rowsToText([{ item: fakeItem }]).indexOf('833') !== -1,
+    api.rowsToText([{ item: fakeItem }]));
 
 api.setState('origin', 6);
 check('複製：6 折套用折扣（1000 → 600）',
-    api.rowsToText([{ item: fakeItem }]).split('\n')[1].indexOf('\t600\t') !== -1,
-    api.rowsToText([{ item: fakeItem }]).split('\n')[1]);
+    api.rowsToText([{ item: fakeItem }]).indexOf('600') !== -1,
+    api.rowsToText([{ item: fakeItem }]));
 api.setState('origin', 10);
 check('複製：模式標籤正確', api.modeLabel() === '原價', api.modeLabel());
 
+const twoItems = api.searchRows('炙甘草');
+const twoText = api.rowsToText(twoItems.concat(twoItems));
+check('複製：多筆品項之間空一行', twoText.split('\n\n').length === twoItems.length * 2,
+    'blocks=' + twoText.split('\n\n').length + ' rows=' + twoItems.length);
+
 const realRows = api.searchRows('桂枝湯');
 const realText = api.rowsToText(realRows);
-check('複製：實際查詢結果可整批輸出', realRows.length === 1 && realText.split('\n').length === 2,
-    'lines=' + realText.split('\n').length);
+check('複製：實際查詢結果可整批輸出',
+    realRows.length === 1 && realText.split('\n')[0] === '桂枝湯 200g（複方）',
+    realText.split('\n')[0]);
 
 console.log('\n===== ' + pass + ' passed, ' + fail + ' failed =====');
 process.exit(fail === 0 ? 0 : 1);
