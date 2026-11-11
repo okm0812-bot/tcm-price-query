@@ -86,6 +86,16 @@
             color: #475569;
         }
         .load-btn:hover { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }
+        .match-hint {
+            display: none;
+            margin-bottom: 10px;
+            padding: 10px 14px;
+            border-radius: 6px;
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            color: #92400e;
+            font-size: 13px;
+        }
         .table-wrap { overflow-x: auto; border: 1px solid #ebeef5; border-radius: 6px; }
         table { width: 100%; border-collapse: collapse; font-size: 14px; white-space: nowrap; }
         th, td {
@@ -110,6 +120,18 @@
         .no-price { color: #cbd5e1; text-align: center; }
         .text-value { color: #f59e0b; font-size: 13px; }
         .empty { text-align: center; padding: 48px; color: #94a3b8; font-size: 15px; }
+        .badge {
+            display: inline-block;
+            margin-left: 6px;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            vertical-align: 2px;
+            white-space: nowrap;
+        }
+        .badge-exact { background: #dcfce7; color: #15803d; }
+        .badge-strong { background: #dbeafe; color: #1d4ed8; }
+        .badge-weak { background: #fef3c7; color: #b45309; }
         .footer-note {
             margin-top: 16px;
             font-size: 12px;
@@ -162,6 +184,8 @@
             <input type="file" id="csvFileInput" accept=".csv,text/csv" style="display:none">
         </div>
 
+        <div class="match-hint" id="matchHint"></div>
+
         <div class="table-wrap">
             <table>
                 <thead>
@@ -189,7 +213,8 @@
 
         <div class="footer-note">
             ※ 5+1 = 買5送1（單價 = 原價 × 5/6）；10+1 = 買10送1（單價 = 原價 × 10/11）；可與折扣疊加計算<br>
-            ※ 價格來源：Google 試算表，空白表示該廠無此品項或未列價
+            ※ 價格來源：Google 試算表，空白表示該廠無此品項或未列價<br>
+            ※ 搜尋採「完全符合 → 開頭 → 包含 → 含於品名 → 相似」分層評分，模糊命中會標示提醒，短查詢命中多筆時不自動挑選
         </div>
         <div class="status-note" id="statusNote"></div>
     </div>
@@ -210,6 +235,305 @@
         let allData = [];
         let currentMode = 'origin'; // origin, 5+1, 10+1
         let discount = 10; // 預設10折（無折扣）
+
+        // ===== 簡轉繁對照表（移植自 tcm_lookup 的 S2T_MAP）=====
+        const S2T_MAP = {
+            '汤': '湯', '术': '朮', '参': '參', '黄': '黃', '当': '當',
+            '归': '歸', '泻': '瀉', '鸡': '雞', '痹': '痺', '风': '風',
+            '师': '師', '钟': '鐘', '别': '別', '颗': '顆', '丝': '絲',
+            '络': '絡', '经': '經', '结': '結', '练': '練', '约': '約',
+            '红': '紅', '级': '級', '纯': '純', '纱': '紗', '纳': '納',
+            '纸': '紙', '线': '線', '组': '組', '细': '細', '织': '織',
+            '终': '終', '绝': '絕', '统': '統', '继': '繼', '绩': '績',
+            '绪': '緒', '续': '續', '鱼': '魚', '龟': '龜', '麦': '麥',
+            '盐': '鹽', '药': '藥', '芦': '蘆', '苍': '蒼', '苏': '蘇',
+            '莱': '萊', '莲': '蓮', '营': '營', '萧': '蕭', '萨': '薩',
+            '虚': '虛', '虫': '蟲', '单': '單', '传': '傳', '伤': '傷',
+            '仪': '儀', '优': '優', '侠': '俠', '侨': '僑', '俩': '倆',
+            '俭': '儉', '债': '債', '偿': '償', '备': '備', '复': '復',
+            '壶': '壺', '处': '處', '夸': '誇', '夺': '奪', '奋': '奮',
+            '妇': '婦', '孙': '孫', '学': '學', '宝': '寶', '实': '實',
+            '宽': '寬', '对': '對', '导': '導', '尽': '盡', '层': '層',
+            '届': '屆', '属': '屬', '屡': '屢', '岁': '歲', '尧': '堯',
+            '巩': '鞏', '帘': '簾', '币': '幣', '帅': '帥', '帧': '幀',
+            '帮': '幫', '带': '帶', '坛': '壇', '坏': '壞', '坠': '墜',
+            '头': '頭',
+            '龙': '龍', '胆': '膽', '连': '連', '叶': '葉', '泽': '澤',
+            '姜': '薑', '党': '黨', '断': '斷', '蒌': '蔞', '兰': '蘭',
+            '贯': '貫', '栀': '梔', '翘': '翹', '银': '銀', '独': '獨',
+            '圣': '聖',
+            '壳': '殼', '郁': '鬱', '补': '補', '锁': '鎖', '阳': '陽',
+            '乌': '烏', '贞': '貞', '苁': '蓯', '锭': '錠',
+            '关': '關', '树': '樹', '动': '動', '运': '運', '进': '進',
+            '转': '轉', '变': '變', '应': '應', '医': '醫', '为': '為',
+            '来': '來', '这': '這', '个': '個', '长': '長', '门': '門',
+            '间': '間', '问': '問', '闻': '聞', '时': '時', '东': '東',
+            '车': '車', '气': '氣', '会': '會', '说': '說', '还': '還',
+            '没': '沒', '现': '現', '点': '點', '么': '麼'
+        };
+
+        function toTraditional(text) {
+            if (!text) return text;
+            let s = String(text).replace(/[０-９]/g, function(c) {
+                return String.fromCharCode(c.charCodeAt(0) - 0xFEE0);
+            });
+            return [...s].map(function(c) { return S2T_MAP[c] || c; }).join('');
+        }
+
+        // ===== 搜尋正規化（移植自 normalizeSearchText）=====
+        function normalizeSearchText(text) {
+            if (!text) return '';
+
+            let s = String(text);
+
+            s = toTraditional(s);
+
+            // 全形英數 → 半形
+            s = s.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(c) {
+                return String.fromCharCode(c.charCodeAt(0) - 0xFEE0);
+            });
+
+            // 全形空白
+            s = s.replace(/　/g, ' ');
+
+            // 常見乘號、分隔符號統一
+            s = s.replace(/[×＊∗]/g, 'x');
+
+            // 簡體「锭」→「錠」
+            s = s.replace(/锭/g, '錠');
+
+            // 輸入法殘留標點
+            s = s.replace(/[?？、，,。．.·•]/g, '');
+
+            s = s.trim();
+
+            // 移除中間空白
+            s = s.replace(/\s+/g, '');
+
+            return s;
+        }
+
+        // ===== Levenshtein 距離 =====
+        function levenshteinDistance(a, b) {
+            if (a === b) return 0;
+            if (!a) return b.length;
+            if (!b) return a.length;
+
+            const prev = new Array(b.length + 1);
+            for (let j = 0; j <= b.length; j++) prev[j] = j;
+
+            for (let i = 1; i <= a.length; i++) {
+                const current = new Array(b.length + 1);
+                current[0] = i;
+                for (let j = 1; j <= b.length; j++) {
+                    const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+                    current[j] = Math.min(
+                        current[j - 1] + 1,
+                        prev[j] + 1,
+                        prev[j - 1] + cost
+                    );
+                }
+                for (let j = 0; j <= b.length; j++) prev[j] = current[j];
+            }
+            return prev[b.length];
+        }
+
+        // ===== 字元集合相似度 =====
+        function uniqueCharMatchScore(a, b) {
+            a = normalizeSearchText(a);
+            b = normalizeSearchText(b);
+            if (!a || !b) return 0;
+            if (a === b) return 1;
+
+            const setA = new Set([...a]);
+            const setB = new Set([...b]);
+            let same = 0;
+            for (const c of setA) if (setB.has(c)) same++;
+
+            const denominator = Math.max(setA.size, setB.size);
+            return denominator ? same / denominator : 0;
+        }
+
+        // ===== 編輯距離相似度 =====
+        function editSimilarity(a, b) {
+            a = normalizeSearchText(a);
+            b = normalizeSearchText(b);
+            if (!a || !b) return 0;
+            if (a === b) return 1;
+
+            const distance = levenshteinDistance(a, b);
+            const maxLen = Math.max(a.length, b.length);
+            return maxLen ? 1 - distance / maxLen : 0;
+        }
+
+        // 方劑常見後綴（移植自 SEARCH_SUFFIXES）
+        const SEARCH_SUFFIXES = ['錠劑', '錠', '丸', '湯', '散', '飲', '膏', '丹', '煎', '劑', '露', '片'];
+
+        // ===== 分層評分（移植自 scoreSearchCandidate，拆成「精確層」與「模糊層」）=====
+        function scoreExactTier(query, name) {
+            if (!query || !name) return 0;
+
+            // 1. 完全相同
+            if (query === name) return 10000;
+
+            // 2. 開頭完全符合
+            if (name.startsWith(query)) return 9000 + query.length * 10;
+
+            // 3. 名稱包含查詢
+            if (name.includes(query)) return 8000 + query.length * 10;
+
+            // 4. 查詢包含完整產品名稱
+            if (query.includes(name)) return 7600 + name.length * 10;
+
+            // 5. 去除常見方劑後綴再比較
+            for (const suffix of SEARCH_SUFFIXES) {
+                if (name.endsWith(suffix)) {
+                    const base = name.slice(0, -suffix.length);
+                    if (base === query) return 9500;
+                    if (base.startsWith(query)) return 8500 + query.length * 10;
+                }
+            }
+
+            return 0;
+        }
+
+        function scoreFuzzyTier(query, name) {
+            if (!query || !name) return 0;
+
+            const editScore = editSimilarity(query, name);
+            const charScore = uniqueCharMatchScore(query, name);
+            const lengthDiff = Math.abs(query.length - name.length);
+
+            // 短字串嚴格限制，避免亂配
+            if (query.length <= 2) {
+                if (editScore >= 0.9 && lengthDiff <= 1) return 6000 + editScore * 500;
+                return 0;
+            }
+
+            if (editScore >= 0.78) return 5000 + editScore * 1000 - lengthDiff * 30;
+            if (charScore >= 0.75) return 4000 + charScore * 1000 - lengthDiff * 30;
+
+            return 0;
+        }
+
+        // ===== 品名／規格拆分（本頁資料是「品名＋規格」同欄）=====
+        const SPEC_REG = /\s*(\d+(?:\.\d+)?\s*(?:kg|g|mg|ml|cc|公克|公斤|毫升|錠|粒|丸|包|袋|片|瓶|罐|盒|支|入))\s*$/i;
+
+        function splitNameSpec(name) {
+            const raw = String(name || '').trim();
+            const m = raw.match(SPEC_REG);
+            if (!m) return { core: raw, spec: '' };
+            return {
+                core: raw.slice(0, m.index).trim(),
+                spec: m[1].replace(/\s+/g, '').toLowerCase()
+            };
+        }
+
+        // ===== 搜尋索引 =====
+        let SEARCH_INDEX = null;
+
+        function buildSearchIndex() {
+            const prefix2 = new Map();
+            const entries = [];
+
+            allData.forEach(function(item) {
+                const nFull = normalizeSearchText(item.name);
+                const nCore = normalizeSearchText(item.core);
+                if (!nFull) return;
+
+                const entry = { item: item, nFull: nFull, nCore: nCore || nFull };
+                entries.push(entry);
+
+                const prefix = nFull.slice(0, 2);
+                if (prefix) {
+                    if (!prefix2.has(prefix)) prefix2.set(prefix, []);
+                    prefix2.get(prefix).push(entry);
+                }
+                // 核心品名（去掉規格）也要能被前兩字命中
+                if (nCore && nCore !== nFull) {
+                    const corePrefix = nCore.slice(0, 2);
+                    if (corePrefix && corePrefix !== prefix) {
+                        if (!prefix2.has(corePrefix)) prefix2.set(corePrefix, []);
+                        prefix2.get(corePrefix).push(entry);
+                    }
+                }
+            });
+
+            SEARCH_INDEX = { prefix2: prefix2, entries: entries };
+            return SEARCH_INDEX;
+        }
+
+        function scoreEntry(q, entry, allowFuzzy) {
+            const exactFull = scoreExactTier(q, entry.nFull);
+            const exactCore = scoreExactTier(q, entry.nCore);
+            let best = Math.max(exactFull, exactCore);
+            if (best === 0 && allowFuzzy) {
+                best = Math.max(
+                    scoreFuzzyTier(q, entry.nFull),
+                    scoreFuzzyTier(q, entry.nCore)
+                );
+            }
+            return best;
+        }
+
+        // 回傳 [{ item, score }]，已去重並排序
+        function searchRows(rawQuery) {
+            const q = normalizeSearchText(rawQuery);
+            if (!q || !SEARCH_INDEX) return [];
+
+            const bucket = SEARCH_INDEX.prefix2.get(q.slice(0, 2)) || SEARCH_INDEX.entries;
+
+            // 先跑精確層（完全相同／開頭／包含／被包含／後綴省略）。
+            // 這裡不因「完全相同」就提早 return：本表同一品名可能有多種規格，
+            // 提早 return 會把同名的其他規格整列藏掉。
+            let hits = collect(q, bucket, false);
+
+            // 精確層完全沒有結果時，才啟動模糊比對（3 字以上）
+            if (!hits.length && q.length >= 3) {
+                hits = collect(q, bucket, true);
+                if (!hits.length && bucket !== SEARCH_INDEX.entries) {
+                    hits = collect(q, SEARCH_INDEX.entries, true);
+                }
+            }
+
+            return dedupe(hits);
+        }
+
+        function collect(q, pool, allowFuzzy) {
+            const hits = [];
+            for (const e of pool) {
+                const score = scoreEntry(q, e, allowFuzzy);
+                if (score > 0) hits.push({ item: e.item, score: score });
+            }
+            return hits;
+        }
+
+        function dedupe(hits) {
+            const map = new Map();
+            for (const x of hits) {
+                const prev = map.get(x.item.name);
+                if (!prev || x.score > prev.score) map.set(x.item.name, x);
+            }
+            return [...map.values()].sort(function(a, b) {
+                if (b.score !== a.score) return b.score - a.score;
+                if (a.item.name.length !== b.item.name.length) return a.item.name.length - b.item.name.length;
+                return a.item.name.localeCompare(b.item.name, 'zh-Hant');
+            });
+        }
+
+        // 符合度標籤（對照評分層級）
+        function matchBadge(score) {
+            if (score >= 10000) return { label: '完全符合', cls: 'badge-exact' };
+            if (score >= 9500) return { label: '簡稱符合', cls: 'badge-strong' };
+            if (score >= 9000) return { label: '開頭符合', cls: 'badge-strong' };
+            if (score >= 8500) return { label: '簡稱開頭', cls: 'badge-strong' };
+            if (score >= 8000) return { label: '名稱包含', cls: 'badge-strong' };
+            if (score >= 7600) return { label: '含於品名', cls: 'badge-strong' };
+            if (score >= 6000) return { label: '高度相似', cls: 'badge-weak' };
+            if (score >= 5000) return { label: '相似', cls: 'badge-weak' };
+            if (score >= 4000) return { label: '略相似', cls: 'badge-weak' };
+            return null;
+        }
 
         // ===== CSV 解析（內建，不依賴 CDN）=====
         function parseCSV(text) {
@@ -281,9 +605,13 @@
                 FACTORIES.forEach(function(f) {
                     priceObj[f] = factoryIdx[f] === -1 ? null : parsePrice(r[factoryIdx[f]]);
                 });
+                const name = nameIdx === -1 ? '' : String(r[nameIdx] || '').trim();
+                const parts = splitNameSpec(name);
                 return {
                     category: catIdx === -1 ? '' : String(r[catIdx] || '').trim(),
-                    name: nameIdx === -1 ? '' : String(r[nameIdx] || '').trim(),
+                    name: name,
+                    core: parts.core,
+                    spec: parts.spec,
                     prices: priceObj
                 };
             }).filter(function(item) { return item.name !== ''; });
@@ -326,9 +654,17 @@
             note.style.color = color || '#94a3b8';
         }
 
+        function setHint(msg) {
+            const el = document.getElementById('matchHint');
+            if (!msg) { el.style.display = 'none'; el.textContent = ''; return; }
+            el.style.display = 'block';
+            el.textContent = msg;
+        }
+
         function applyCsv(csvText, sourceLabel, isDemo) {
             const built = buildData(csvText);
             allData = built.data;
+            buildSearchIndex();
 
             let msg = '資料來源：' + sourceLabel + '｜已載入 ' + allData.length + ' 筆品項';
             let color = '#94a3b8';
@@ -397,13 +733,30 @@
 
         // ===== 渲染表格 =====
         function renderTable() {
-            const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
+            const rawQuery = document.getElementById('searchInput').value.trim();
             const category = document.getElementById('categorySelect').value;
 
-            const filtered = allData.filter(function(item) {
-                const matchCategory = category === 'all' || item.category === category;
-                const matchKeyword = item.name.toLowerCase().indexOf(keyword) !== -1;
-                return matchCategory && matchKeyword;
+            const q = normalizeSearchText(rawQuery);
+            let rows;
+
+            if (!q) {
+                // 無關鍵字：照原始順序瀏覽
+                rows = allData.map(function(item) { return { item: item, score: null }; });
+                setHint('');
+            } else {
+                rows = searchRows(rawQuery);
+                if (rows.length > 1 && q.length <= 2) {
+                    setHint('「' + rawQuery + '」符合 ' + rows.length + ' 筆不同品項，未自動挑選。請補齊藥名（例如加上「湯」「散」「丸」）以縮小範圍。');
+                } else if (rows.length >= 1 && rows[0].score < 8000) {
+                    const names = rows.slice(0, 3).map(function(r) { return r.item.name; }).join('、');
+                    setHint('「' + rawQuery + '」查無精確符合，以下為相似品項：' + names + '（請確認後再採用）');
+                } else {
+                    setHint('');
+                }
+            }
+
+            const filtered = rows.filter(function(r) {
+                return category === 'all' || r.item.category === category;
             });
 
             const tbody = document.getElementById('tableBody');
@@ -413,10 +766,16 @@
             }
 
             let html = '';
-            filtered.forEach(function(item) {
+            filtered.forEach(function(r) {
+                const item = r.item;
+                const badge = (r.score !== null) ? matchBadge(r.score) : null;
+                const badgeHtml = badge
+                    ? '<span class="badge ' + badge.cls + '">' + badge.label + '</span>'
+                    : '';
+
                 html += '<tr>' +
                     '<td>' + item.category + '</td>' +
-                    '<td>' + item.name + '</td>';
+                    '<td>' + item.name + badgeHtml + '</td>';
 
                 FACTORIES.forEach(function(factory) {
                     const raw = item.prices[factory];

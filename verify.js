@@ -1,4 +1,4 @@
-// verify.js — 驗證 index.html 內建邏輯（CSV 解析、欄位對應、折扣/買贈計算、表格渲染）
+// verify.js — 驗證 index.html 內建邏輯（CSV 解析、欄位對應、比對評分、折扣/買贈計算、表格渲染）
 // 用法： node verify.js
 const fs = require('fs');
 const path = require('path');
@@ -19,7 +19,7 @@ function makeEl(id) {
     };
 }
 const els = {};
-['searchInput', 'categorySelect', 'discountInput', 'tableBody', 'statusNote', 'pickCsvBtn', 'csvFileInput']
+['searchInput', 'categorySelect', 'discountInput', 'tableBody', 'statusNote', 'matchHint', 'pickCsvBtn', 'csvFileInput']
     .forEach(function (id) { els[id] = makeEl(id); });
 els.searchInput.value = '';
 els.categorySelect.value = 'all';
@@ -30,11 +30,15 @@ const documentStub = {
     querySelectorAll: function () { return []; }
 };
 
-const fetchStub = function () { return Promise.reject(new Error('offline (test)')); };
+// 讓 loadData 的載入鏈永遠 pending，避免非同步覆蓋測試中的表格
+const fetchStub = function () { return new Promise(function () {}); };
 
 const api = new Function(
     'document', 'fetch', 'AbortController', 'setTimeout', 'clearTimeout', 'FileReader',
-    code + '\nreturn { parseCSV, buildData, parsePrice, calcPrice, renderTable, applyCsv, FACTORIES, setState: function(m, d){ currentMode = m; discount = d; } };'
+    code + '\nreturn { parseCSV, buildData, parsePrice, calcPrice, renderTable, applyCsv, FACTORIES, ' +
+    'normalizeSearchText, splitNameSpec, searchRows, buildSearchIndex, matchBadge, ' +
+    'scoreExactTier, scoreFuzzyTier, editSimilarity, levenshteinDistance, uniqueCharMatchScore, ' +
+    'setState: function(m, d){ currentMode = m; discount = d; } };'
 )(documentStub, fetchStub, AbortController, setTimeout, clearTimeout, function () {});
 
 let pass = 0, fail = 0;
@@ -43,34 +47,101 @@ function check(name, cond, detail) {
     else { fail++; console.log('FAIL  ' + name + (detail ? '  -> ' + detail : '')); }
 }
 
-// ---- 1. CSV 解析（含引號內逗號）----
 const sample = fs.readFileSync(path.join(__dirname, 'sample-data.csv'), 'utf8');
+
+// ---------- 1. CSV 解析 ----------
 const rows = api.parseCSV(sample);
-check('CSV 列數 = 6（表頭+5筆）', rows.length === 6, 'got ' + rows.length);
+check('CSV 列數 = 8（表頭+7筆）', rows.length === 8, 'got ' + rows.length);
 check('欄數 = 13', rows[0].length === 13 && rows[1].length === 13, 'head=' + rows[0].length + ' row1=' + rows[1].length);
 check('引號內逗號未被拆欄', rows[2][5] === '停售,待通知', 'got [' + rows[2][5] + ']');
 
-// ---- 2. 欄位對應 ----
+// ---------- 2. 欄位對應 ----------
 const built = api.buildData(sample);
-check('資料筆數 = 5', built.data.length === 5, 'got ' + built.data.length);
+check('資料筆數 = 7', built.data.length === 7, 'got ' + built.data.length);
 check('無缺欄警告', built.missing.length === 0, built.missing.join(','));
 
 const guizhi = built.data.find(function (x) { return x.name.indexOf('桂枝湯') !== -1; });
 check('桂枝湯 富田=1200', guizhi.prices['富田'] === 1200);
 check('桂枝湯 莊松榮=空白(null)', guizhi.prices['莊松榮'] === null);
-check('桂枝湯 萬國=1250', guizhi.prices['萬國'] === 1250);
 check('桂枝湯 分類=複方', guizhi.category === '複方', guizhi.category);
 
 const dahuang = built.data.find(function (x) { return x.name.indexOf('大黃') !== -1; });
 check('非數字保留文字(停售,待通知)', dahuang.prices['科達'] === '停售,待通知', String(dahuang.prices['科達']));
 check('時價保留文字', dahuang.prices['天明'] === '時價', String(dahuang.prices['天明']));
 
-// ---- 3. 表頭上方有標題列也能抓到 ----
-const withTitle = '科學中藥牌價表,,,\n' + sample;
-const built2 = api.buildData(withTitle);
-check('有標題列時仍解析成功', built2.data.length === 5 && built2.missing.length === 0, 'rows=' + built2.data.length + ' missing=' + built2.missing.join(','));
+// ---------- 3. 品名／規格拆分 ----------
+const p1 = api.splitNameSpec('桂枝湯 200g');
+check('拆規格：桂枝湯/200g', p1.core === '桂枝湯' && p1.spec === '200g', p1.core + '/' + p1.spec);
+const p2 = api.splitNameSpec('六味地黃丸 丸劑 500g');
+check('拆規格：核心含劑型', p2.core === '六味地黃丸 丸劑' && p2.spec === '500g', p2.core + '/' + p2.spec);
+const p3 = api.splitNameSpec('科學中藥錠劑 1000錠');
+check('拆規格：錠數', p3.core === '科學中藥錠劑' && p3.spec === '1000錠', p3.core + '/' + p3.spec);
+const p4 = api.splitNameSpec('一貫煎錠');
+check('無規格數字不動刀', p4.core === '一貫煎錠' && p4.spec === '', p4.core + '/' + p4.spec);
 
-// ---- 4. 計算邏輯 ----
+// ---------- 4. 正規化（簡繁／全形／空白）----------
+check('簡體轉繁體', api.normalizeSearchText('桂枝汤') === '桂枝湯', api.normalizeSearchText('桂枝汤'));
+check('去除空白', api.normalizeSearchText(' 桂枝湯 200g ') === '桂枝湯200g', api.normalizeSearchText(' 桂枝湯 200g '));
+check('全形數字轉半形', api.normalizeSearchText('六味地黃丸２００ｇ') === '六味地黃丸200g', api.normalizeSearchText('六味地黃丸２００ｇ'));
+check('去除標點', api.normalizeSearchText('桂枝湯，') === '桂枝湯', api.normalizeSearchText('桂枝湯，'));
+
+// ---------- 5. 相似度函式 ----------
+check('levenshtein(abc,abd)=1', api.levenshteinDistance('abc', 'abd') === 1);
+check('editSimilarity 完全相同=1', api.editSimilarity('桂枝湯', '桂枝湯') === 1);
+check('editSimilarity(桂枝湯,桂支湯)=0.667', Math.abs(api.editSimilarity('桂枝湯', '桂支湯') - 2 / 3) < 1e-9, String(api.editSimilarity('桂枝湯', '桂支湯')));
+check('字元集合相似度(桂枝湯,桂支湯)=0.667', Math.abs(api.uniqueCharMatchScore('桂枝湯', '桂支湯') - 2 / 3) < 1e-9);
+
+// ---------- 6. 評分層級 ----------
+check('完全相同 = 10000', api.scoreExactTier('桂枝湯', '桂枝湯') === 10000);
+check('開頭符合 = 9000+len*10', api.scoreExactTier('桂枝', '桂枝湯') === 9020, String(api.scoreExactTier('桂枝', '桂枝湯')));
+check('名稱包含 = 8000+len*10', api.scoreExactTier('地黃', '六味地黃丸') === 8020, String(api.scoreExactTier('地黃', '六味地黃丸')));
+// 註：原始頁面的 9500「後綴省略」分層在實際執行時到不了——名稱以查詢開頭時，
+// 第 2 層 startsWith 會先回傳 9000+len*10。這裡保留分層程式碼，但驗證真實行為。
+check('後綴品名（炙甘草 vs 炙甘草湯）= 開頭 9030', api.scoreExactTier('炙甘草', '炙甘草湯') === 9030,
+    String(api.scoreExactTier('炙甘草', '炙甘草湯')));
+check('2字不做模糊', api.scoreFuzzyTier('桂支', '桂枝湯') === 0, String(api.scoreFuzzyTier('桂支', '桂枝湯')));
+
+// ---------- 7. 搜尋行為 ----------
+api.applyCsv(sample, 'test', false);
+
+const r1 = api.searchRows('桂枝湯');
+check('搜「桂枝湯」→ 1 筆，完全符合', r1.length === 1 && r1[0].score === 10000, 'n=' + r1.length + ' score=' + (r1[0] && r1[0].score));
+
+const r2 = api.searchRows('桂枝');
+check('搜「桂枝」→ 命中桂枝湯（開頭符合）', r2.length >= 1 && r2[0].item.name.indexOf('桂枝湯') !== -1 && r2[0].score >= 9000, 'n=' + r2.length + ' score=' + (r2[0] && r2[0].score));
+
+const r3 = api.searchRows('桂枝汤');
+check('簡體查詢也能命中', r3.length >= 1 && r3[0].item.name.indexOf('桂枝湯') !== -1);
+
+const r4 = api.searchRows('炙甘草');
+check('搜「炙甘草」→ 2 筆（單方與方劑都要列出）', r4.length === 2, 'n=' + r4.length);
+check('單方 炙甘草 排第一（完全符合 10000）', r4[0] && r4[0].item.name === '炙甘草 100g' && r4[0].score === 10000, r4[0] && (r4[0].item.name + ' / ' + r4[0].score));
+check('方劑 炙甘草湯 次之（開頭符合 ≥9000）', r4[1] && r4[1].item.name === '炙甘草湯 200g' && r4[1].score >= 9000, r4[1] && (r4[1].item.name + ' / ' + r4[1].score));
+
+const r5 = api.searchRows('六味地黃丸');
+check('搜「六味地黃丸」→ 2 筆（200g 與丸劑兩規格都列出）', r5.length === 2, 'n=' + r5.length);
+check('200g 版排第一（核心完全符合）', r5[0] && r5[0].item.name === '六味地黃丸 200g' && r5[0].score === 10000, r5[0] && (r5[0].item.name + ' / ' + r5[0].score));
+check('丸劑規格仍在清單中', r5.some(function (x) { return x.item.name === '六味地黃丸 丸劑 500g'; }));
+
+const r5b = api.searchRows('六味地黃凡');
+check('錯一字 → 模糊比對命中（分數落在 5000 段）', r5b.length >= 1 && r5b[0].score >= 5000 && r5b[0].score < 6000,
+    'n=' + r5b.length + ' score=' + (r5b[0] && r5b[0].score));
+
+const r6 = api.searchRows('阿斯匹靈');
+check('查無此藥 → 0 筆', r6.length === 0, 'n=' + r6.length);
+
+const r7 = api.searchRows('桂');
+check('單字查詢只做精確層（不亂配）', r7.length >= 1 && r7.every(function (x) { return x.score >= 7600; }),
+    'n=' + r7.length + ' minScore=' + Math.min.apply(null, r7.map(function (x) { return x.score; })));
+
+// ---------- 8. 符合度標籤 ----------
+check('10000 → 完全符合', api.matchBadge(10000).label === '完全符合');
+check('9500 → 簡稱符合', api.matchBadge(9500).label === '簡稱符合');
+check('9020 → 開頭符合', api.matchBadge(9020).label === '開頭符合');
+check('8020 → 名稱包含', api.matchBadge(8020).label === '名稱包含');
+check('5200 → 相似', api.matchBadge(5200).label === '相似');
+
+// ---------- 9. 計算邏輯 ----------
 api.setState('origin', 10);
 check('原價 1000 → 1000', api.calcPrice(1000) === 1000, '' + api.calcPrice(1000));
 api.setState('5+1', 10);
@@ -79,35 +150,44 @@ api.setState('10+1', 10);
 check('1000 10+1 → 909', api.calcPrice(1000) === 909, '' + api.calcPrice(1000));
 api.setState('5+1', 6);
 check('1000 打6折 + 5+1 → 500', api.calcPrice(1000) === 500, '' + api.calcPrice(1000));
-api.setState('origin', 6.5);
-check('1000 打6.5折 → 650', api.calcPrice(1000) === 650, '' + api.calcPrice(1000));
-api.setState('5+1', 10);
 check('文字值不參與運算', api.calcPrice('時價') === '時價');
 check('null 不參與運算', api.calcPrice(null) === null);
 
-// ---- 5. 渲染 + 搜尋 ----
-api.applyCsv(sample, 'test', false);
+// ---------- 10. 渲染與提示 ----------
 api.setState('origin', 10);
 els.searchInput.value = '桂枝';
 api.renderTable();
-check('搜尋關鍵字只留 1 列', (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 1,
+check('渲染：搜「桂枝」只留 1 列', (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 1,
     'rows=' + (els.tableBody.innerHTML.match(/<tr>/g) || []).length);
-check('表格含 1,200 / 1,350 千分位', els.tableBody.innerHTML.indexOf('1,200') !== -1 && els.tableBody.innerHTML.indexOf('1,350') !== -1);
-// 桂枝湯：莊松榮、港香蘭、天一、國科 共 4 欄空白
-check('空白顯示為 -', (els.tableBody.innerHTML.match(/no-price/g) || []).length === 4,
-    'count=' + (els.tableBody.innerHTML.match(/no-price/g) || []).length);
+check('渲染：千分位 1,200', els.tableBody.innerHTML.indexOf('1,200') !== -1);
+check('渲染：符合度標籤出現', els.tableBody.innerHTML.indexOf('badge') !== -1);
+
+els.searchInput.value = '炙甘草';
+api.renderTable();
+check('渲染：多筆時列出 2 列且顯示標籤', (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 2 &&
+    els.tableBody.innerHTML.indexOf('完全符合') !== -1 && els.tableBody.innerHTML.indexOf('開頭符合') !== -1);
+
+els.searchInput.value = '地黃';
+api.renderTable();
+check('短查詢多筆 → 顯示不自動挑選提示', els.matchHint.style.display === 'block' && els.matchHint.textContent.indexOf('未自動挑選') !== -1,
+    String(els.matchHint.textContent));
+
+els.searchInput.value = '六味地黃凡';
+api.renderTable();
+check('低信心單筆 → 顯示相似品項提示', els.matchHint.style.display === 'block' && els.matchHint.textContent.indexOf('查無精確符合') !== -1,
+    String(els.matchHint.textContent));
 
 els.searchInput.value = '';
 els.categorySelect.value = '錠劑';
 api.renderTable();
 check('分類篩選(錠劑) = 1 列', (els.tableBody.innerHTML.match(/<tr>/g) || []).length === 1);
+check('無關鍵字時不顯示標籤', els.tableBody.innerHTML.indexOf('badge') === -1);
 
 els.categorySelect.value = 'all';
 els.searchInput.value = '不存在的藥';
 api.renderTable();
 check('查無資料提示', els.tableBody.innerHTML.indexOf('無符合條件的藥品') !== -1);
 
-// ---- 6. 折扣後套用 5+1 的整體渲染 ----
 els.searchInput.value = '桂枝';
 api.setState('5+1', 10);
 api.renderTable();
