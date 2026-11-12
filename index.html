@@ -434,7 +434,7 @@
         .price-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 8px; }
         .price-cell {
             display: flex;
-            align-items: baseline;
+            align-items: flex-start;
             justify-content: space-between;
             gap: 6px;
             padding: 7px 9px;
@@ -443,6 +443,8 @@
             font-size: 14px;
         }
         .price-cell .f { color: #64748b; font-size: 13px; white-space: nowrap; }
+        .price-cell .vwrap { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25; }
+        .price-cell .lp { font-size: 11px; color: #94a3b8; white-space: nowrap; font-variant-numeric: tabular-nums; }
         .price-cell .v { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
         .price-cell .tag { font-style: normal; font-size: 11px; font-weight: 600; margin-left: 4px; color: #1d4ed8; }
         .price-cell.empty { background: #fbfcfe; }
@@ -1478,11 +1480,16 @@
                         return;
                     }
                     if (typeof calculated === 'number') {
+                        // 牌價（原件）與折後價不同時，先標「牌價 480」，下一行才是折扣／搭贈後的價
+                        const listPrice = (typeof raw === 'number') ? raw.toLocaleString() : escapeHtml(String(raw));
+                        const showList = raw !== calculated;
                         html += '<div class="price-cell' + (mode !== 'origin' ? ' gift' : '') + '">' +
                             '<span class="f">' + factory +
                             (mode !== 'origin' ? '<i class="tag">' + mode + '</i>' : '') +
                             '</span>' +
-                            '<span class="v">' + calculated.toLocaleString() + '</span></div>';
+                            '<span class="vwrap">' +
+                            (showList ? '<span class="lp">牌價 ' + listPrice + '</span>' : '') +
+                            '<span class="v">' + calculated.toLocaleString() + '</span></span></div>';
                     } else {
                         html += '<div class="price-cell text"><span class="f">' + factory +
                             '</span><span class="v">' + escapeHtml(calculated) + '</span></div>';

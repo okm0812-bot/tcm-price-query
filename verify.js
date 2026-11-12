@@ -324,6 +324,21 @@ api.setState('5+1', 10);
 api.runQuery();
 const first = els.resultList.innerHTML.match(/class="v">([\d,]+)/);
 check('5+1 模式 1200 → 1,000', first && first[1] === '1,000', first ? first[1] : 'none');
+check('牌價：有折扣時格子內先顯示牌價', els.resultList.innerHTML.indexOf('牌價 1,200') !== -1,
+    els.resultList.innerHTML.slice(0, 200));
+
+// 牌價與折後價成對出現，且折後價＝牌價 × 6 折
+api.setState('origin', 6);
+api.renderTable();
+const lpPair = els.resultList.innerHTML.match(/牌價 ([\d,]+)<\/span><span class="v">([\d,]+)/);
+check('牌價：6 折時牌價與折後價並列（1,200 → 720）',
+    lpPair && lpPair[1] === '1,200' && lpPair[2] === '720', lpPair ? lpPair[1] + '/' + lpPair[2] : 'none');
+
+// 無折扣時不重複顯示牌價
+api.setState('origin', 10);
+api.renderTable();
+check('牌價：10 折（無折扣）時不重複顯示牌價',
+    els.resultList.innerHTML.indexOf('牌價 ') === -1, els.resultList.innerHTML.slice(0, 160));
 
 // ---------- 11. 真實試算表表頭（多版本欄位、無分類欄） ----------
 // 忠實還原 Google 試算表匯出的表頭：廠牌名後接年份／月份，且同一廠牌多欄
