@@ -392,31 +392,54 @@
         .chip { padding: 6px 8px 6px 12px; border-radius: 999px; font-size: 13px; }
         .chip-x { font-size: 18px; padding: 0 6px; }
         .gift-panel {
-            margin-bottom: 12px;
-            padding: 12px 14px;
-            background: #fff;
-            border: 1px solid #e5eaf1;
-            border-radius: 14px;
+            margin-bottom: 14px;
+            padding: 14px 14px 12px;
+            background: #f4f8ff;
+            border: 1px solid #c3d7f4;
+            border-radius: 16px;
         }
-        .gift-title { font-size: 13px; line-height: 1.5; color: #475569; cursor: pointer; padding: 2px 0; }
-        .gift-title::marker { color: #94a3b8; }
-        #giftGrid { margin-top: 10px; }
+        .gift-title {
+            font-size: 15px;
+            font-weight: 600;
+            line-height: 1.5;
+            color: #1e3a8a;
+            cursor: pointer;
+            padding: 2px 0;
+        }
+        .gift-title::marker { color: #2563eb; }
+        #giftGrid { margin-top: 12px; }
         .gift-grid { display: grid; grid-template-columns: repeat(1, minmax(0, 1fr)); gap: 10px; }
-        .gift-item { display: flex; flex-direction: column; gap: 5px; }
-        .gift-top { display: flex; align-items: center; gap: 6px; }
-        .gift-item .fname { flex: 0 0 auto; min-width: 2.9em; font-size: 14px; color: #334155; white-space: nowrap; }
+        .gift-item {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 10px;
+            background: #fff;
+            border: 1px solid #d7e3f5;
+            border-radius: 12px;
+        }
+        .gift-item.active { background: #eaf2ff; border-color: #93c5fd; }
+        .gift-top { display: flex; align-items: center; gap: 8px; }
+        .gift-item .fname {
+            flex: 0 0 auto;
+            min-width: 3.2em;
+            font-size: 16px;
+            font-weight: 600;
+            color: #1e293b;
+            white-space: nowrap;
+        }
         .gift-disc-wrap {
             display: flex;
             align-items: center;
-            gap: 4px;
-            padding: 3px 0;
-            font-size: 12px;
-            color: #64748b;
+            gap: 6px;
+            padding: 2px 0;
+            font-size: 13px;
+            color: #475569;
             white-space: nowrap;
         }
         .gift-disc {
-            width: 60px;
-            height: 38px;
+            width: 64px;
+            height: 44px;
             text-align: center;
             font-size: 16px;
             border: 1px solid #dbe3ec;
@@ -426,15 +449,22 @@
         }
         .gift-sel {
             flex: 1 1 auto;
-            min-width: 68px;
-            height: 38px;
-            font-size: 14px;
-            border: 1px solid #dbe3ec;
-            border-radius: 8px;
+            min-width: 76px;
+            height: 44px;
+            padding: 0 6px;
+            font-size: 16px;
+            font-weight: 600;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
             background: #fff;
             color: #0f172a;
         }
-        .gift-sel.on { border-color: #93c5fd; background: #eff6ff; color: #1d4ed8; font-weight: 600; }
+        .gift-sel.on {
+            border-color: #2563eb;
+            background: #dbeafe;
+            color: #1d4ed8;
+            font-weight: 700;
+        }
         .match-hint { margin-bottom: 12px; padding: 10px 12px; font-size: 13px; line-height: 1.6; border-radius: 10px; }
         .result-list { display: flex; flex-direction: column; gap: 12px; }
         .result-empty {
@@ -534,7 +564,7 @@
         <div class="chips" id="selectedChips"></div>
 
         <details class="gift-panel" id="giftDetails">
-            <summary class="gift-title" id="giftSummary">廠商搭贈：全部原價（點此設定 5+1／10+1）</summary>
+            <summary class="gift-title" id="giftSummary">廠商搭贈：全部不搭贈（點此設定 5+1／10+1）</summary>
             <div class="gift-grid" id="giftGrid"></div>
         </details>
 
@@ -1339,9 +1369,9 @@
             return { prefix: prefix, token: token };
         }
 
-        // ===== 廠商搭贈設定（每家廠商各自選 5+1／10+1／原價）=====
+        // ===== 廠商搭贈設定（每家廠商各自選 5+1／10+1／不搭贈）=====
         const MODE_OPTIONS = [
-            { value: 'origin', label: '原價' },
+            { value: 'origin', label: '不搭贈' },
             { value: '5+1', label: '5+1' },
             { value: '10+1', label: '10+1' }
         ];
@@ -1367,8 +1397,8 @@
             const el = document.getElementById('giftSummary');
             if (!el) return;
             const s = modeSummary();
-            el.textContent = (s === '全部原價'
-                ? '廠商搭贈：全部原價（點此設定 5+1／10+1）'
+            el.textContent = (s === '全部不搭贈'
+                ? '廠商搭贈：全部不搭贈（點此設定 5+1／10+1）'
                 : '廠商搭贈：' + s + '（點此調整）') + '｜折數 ' + discountSummary();
         }
 
@@ -1378,7 +1408,7 @@
             let html = '';
             FACTORIES.forEach(function(f) {
                 const cur = factoryModes[f];
-                html += '<div class="gift-item"><div class="gift-top"><span class="fname">' + f + '</span>' +
+                html += '<div class="gift-item' + (cur !== 'origin' ? ' active' : '') + '"><div class="gift-top"><span class="fname">' + f + '</span>' +
                     '<select class="gift-sel' + (cur !== 'origin' ? ' on' : '') + '" data-factory="' + f + '">';
                 MODE_OPTIONS.forEach(function(o) {
                     html += '<option value="' + o.value + '"' + (cur === o.value ? ' selected' : '') + '>' +
@@ -1424,10 +1454,12 @@
             if (sel) {
                 sel.value = mode;
                 sel.className = 'gift-sel' + (mode === 'origin' ? '' : ' on');
+                const card = sel.closest ? sel.closest('.gift-item') : null;
+                if (card) card.className = 'gift-item' + (mode === 'origin' ? '' : ' active');
             }
             renderTable();
             updateGiftSummary();
-            setHint(factory + '：' + (mode === 'origin' ? '原價' : mode) + '（' + modeHint(mode) + '）');
+            setHint(factory + '：' + (mode === 'origin' ? '不搭贈' : mode) + '（' + modeHint(mode) + '）');
         }
 
         // 分類篩選後要顯示的提示：說清楚「篩選後剩幾筆」與原本的完整提示
@@ -1581,7 +1613,7 @@
             const mode = (factory && factoryModes[factory]) ? factoryModes[factory] : defaultMode;
             if (mode === '5+1') return '5+1';
             if (mode === '10+1') return '10+1';
-            return '原價';
+            return '不搭贈';
         }
 
         // 目前有哪些廠商套了搭贈（複製結果的說明用）
@@ -1590,7 +1622,7 @@
             FACTORIES.forEach(function(f) {
                 if (factoryModes[f] !== 'origin') parts.push(f + ' ' + factoryModes[f]);
             });
-            return parts.length ? parts.join('、') : '全部原價';
+            return parts.length ? parts.join('、') : '全部不搭贈';
         }
 
         // 廠牌名補全角空格到固定寬度，讓價格起始位置對齊
@@ -1634,7 +1666,7 @@
 
                 const lines = [title];
                 const summary = modeSummary();
-                if (summary !== '全部原價') lines.push('（搭贈：' + summary + '）');
+                if (summary !== '全部不搭贈') lines.push('（搭贈：' + summary + '）');
                 const specNote = specNoteText(item);
                 if (specNote) lines.push('（' + specNote + '）');
                 for (let i = 0; i < cells.length; i += CELL_PER_LINE) {
@@ -1873,7 +1905,7 @@
             }
             buildGiftPanel();
             renderTable();
-            setHint('已清除輸入、查詢結果，以及各廠搭贈與折數（回到原價、' + DEFAULT_DISCOUNT + ' 折）');
+            setHint('已清除輸入、查詢結果，以及各廠搭贈與折數（全部不搭贈、' + DEFAULT_DISCOUNT + ' 折）');
         }
 
         // 這段文字是否已經被清單裡的品項涵蓋（避免同一筆重複查）

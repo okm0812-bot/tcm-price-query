@@ -418,7 +418,7 @@ check('複製：6 折套用折扣（1000 → 600）',
     api.rowsToText([{ item: fakeItem }]).indexOf('600') !== -1,
     api.rowsToText([{ item: fakeItem }]));
 api.setState('origin', 10);
-check('複製：模式標籤正確', api.modeLabel() === '原價', api.modeLabel());
+check('複製：模式標籤正確', api.modeLabel() === '不搭贈', api.modeLabel());
 
 const twoItems = api.searchRows('炙甘草');
 const twoText = api.rowsToText(twoItems.concat(twoItems));
@@ -431,11 +431,15 @@ check('複製：實際查詢結果可整批輸出',
     realRows.length === 1 && realText.split('\n')[0] === '桂枝湯 200g（複方）',
     realText.split('\n')[0]);
 
-// ---------- 13. 每家廠商各自選 5+1／10+1／原價 ----------
+// ---------- 13. 每家廠商各自選 5+1／10+1／不搭贈 ----------
 api.setState('origin', 10);
 const giftItem = { category: '複方', name: 'G測試', prices: { '富田': 1200, '仙豐': 1200, '勝昌': 1200 } };
-check('搭贈：預設全部原價',
+check('搭贈：預設全部不搭贈',
     api.calcPrice(1200, '富田') === 1200 && api.calcPrice(1200, '仙豐') === 1200);
+check('搭贈：下拉選項為「不搭贈／5+1／10+1」',
+    els.giftGrid.innerHTML.indexOf('>不搭贈</option>') !== -1 &&
+    els.giftGrid.innerHTML.indexOf('>原價</option>') === -1,
+    els.giftGrid.innerHTML.slice(0, 160));
 
 api.setFactoryMode('富田', '5+1');
 check('搭贈：單獨設定富田 5+1（1200 → 1,000）', api.calcPrice(1200, '富田') === 1000,
@@ -458,7 +462,7 @@ check('搭贈：複製結果標明各家套用的搭贈',
     mixedText.indexOf('（搭贈：富田 5+1、仙豐 10+1、勝昌 5+1）') !== -1, mixedText);
 
 api.setFactoryMode('富田', 'origin');
-check('搭贈：可改回原價（富田 1200 → 1200）', api.calcPrice(1200, '富田') === 1200,
+check('搭贈：可改回不搭贈（富田 1200 → 1200）', api.calcPrice(1200, '富田') === 1200,
     '' + api.calcPrice(1200, '富田'));
 api.setFactoryMode('不存在', '5+1');
 check('搭贈：未知廠商不會寫入狀態', api.getModes()['不存在'] === undefined);
@@ -503,9 +507,9 @@ check('清除：查詢清單與結果都清空',
     'selected=' + api.getSelected().length);
 check('清除：上方標籤列隱藏', els.selectedChips.style.display === 'none', String(els.selectedChips.style.display));
 check('清除：提示說明搭贈與折數一起被清掉',
-    els.matchHint.textContent.indexOf('各廠搭贈與折數') !== -1 && els.matchHint.textContent.indexOf('回到原價') !== -1,
+    els.matchHint.textContent.indexOf('各廠搭贈與折數') !== -1 && els.matchHint.textContent.indexOf('全部不搭贈') !== -1,
     els.matchHint.textContent);
-check('清除：5+1／10+1 全部回到原價',
+check('清除：5+1／10+1 全部回到不搭贈',
     FACTORIES_ALL_ORIGIN(), JSON.stringify(api.getModes()));
 check('清除：各廠折數回到預設 6 折',
     api.getDiscount() === 6 && api.getFactoryDiscounts()['仙豐'] === 6 && api.getFactoryDiscounts()['富田'] === 6,
