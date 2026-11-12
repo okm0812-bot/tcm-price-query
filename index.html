@@ -376,7 +376,7 @@
             border-radius: 10px;
             background: #fff;
         }
-        .action-row { display: grid; grid-template-columns: 1.2fr 0.8fr 1fr; gap: 10px; width: 100%; }
+        .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
         .search-btn, .copy-btn, .clear-btn { width: 100%; height: 48px; font-size: 16px; border-radius: 12px; white-space: nowrap; }
         .search-btn { font-weight: 700; box-shadow: 0 2px 8px rgba(37, 99, 235, .22); }
         .clear-btn {
@@ -480,7 +480,7 @@
 
         <div class="control-panel">
             <div class="search-wrap">
-                <textarea id="searchInput" rows="2" placeholder="輸入藥名 → 點選候選 → 按「查詢」" autocomplete="off" spellcheck="false"></textarea>
+                <textarea id="searchInput" rows="2" placeholder="輸入藥名（或點選候選）→ 直接列出各廠價格" autocomplete="off" spellcheck="false"></textarea>
                 <div class="suggest-list" id="suggestList"></div>
             </div>
 
@@ -501,7 +501,6 @@
             </div>
 
             <div class="action-row">
-                <button class="search-btn" id="searchBtn">查詢</button>
                 <button class="clear-btn" id="clearBtn">清除</button>
                 <button class="copy-btn" id="copyBtn">複製結果</button>
             </div>
@@ -531,7 +530,7 @@
                 ※ 搭贈是「每家廠商各自設定」：展開上方「廠商搭贈」可單獨把某家設成 5+1／10+1，沒搭贈的廠商留在「原價」<br>
                 ※ 價格來源：Google 試算表，空白表示該廠無此品項或未列價<br>
                 ※ 搜尋採「完全符合 → 開頭 → 包含 → 含於品名 → 相似」分層評分，模糊命中會標示提醒<br>
-                ※ 查詢方式：輸入藥名 → 從候選清單點選要查的品項（可一次多筆，每行一筆或用逗號、頓號分隔）→ 按「查詢」才列出結果<br>
+                ※ 查詢方式：輸入完整品名，或從候選清單點選要查的品項（可一次多筆，每行一筆或用逗號、頓號分隔）→ 直接列出結果，不用再按查詢<br>
                 ※ 點選的品項會列在上方標籤，按 × 可移除；只打一筆且唯一命中時會自動帶入，多筆並列則不猜、請自行點選<br>
                 ※ 候選品項可用 ↑↓ 選取後按 Enter 加入；直接按 Enter 則是換行（繼續輸入下一筆）
             </div>
@@ -594,9 +593,9 @@
         let hasCategory = true;
         let lastRows = []; // 目前畫面上（已套用查詢與分類篩選）的品項，匯出時用同一份
         let selectedItems = []; // 使用者從候選清單點選的品項（查詢清單）
-        let queryRows = null;   // 上次按「查詢」的結果；null 表示還沒查過
+        let queryRows = null;   // 目前列出的結果；null 表示還沒查過
         let queryState = { notFound: [], ambiguous: [] };
-        let lastQueryHint = '';  // 上一次按「查詢」算出的完整提示（切換分類時要還原）
+        let lastQueryHint = '';  // 上一次算出的完整提示（切換分類時要還原）
         let discount = 10; // 預設10折（無折扣）
         // 每家廠商各自的搭贈方式：'origin'（原價，不套搭贈）／'5+1'／'10+1'
         let factoryModes = {};
@@ -1419,7 +1418,7 @@
                 lastQueryHint = '';
                 list.innerHTML = '<div class="result-empty">' +
                     (allData.length
-                        ? '輸入藥名 → 從候選清單點選品項 → 按「查詢」列出結果（可一次多筆）'
+                        ? '輸入完整品名，或點選上面的候選品項，就會直接列出各廠價格（可一次多筆）'
                         : '資料載入中…') +
                     '</div>';
                 setHint('');
@@ -1439,7 +1438,7 @@
                     const a = queryState.ambiguous[0];
                     msg = '請從候選清單點選要查的品項（「' + escapeHtml(a.token) + '」有 ' + a.count + ' 筆符合）';
                 } else if (queryRows.length === 0) {
-                    msg = '輸入藥名 → 從候選清單點選品項 → 按「查詢」列出結果（可一次多筆）';
+                    msg = '輸入完整品名，或點選上面的候選品項，就會直接列出各廠價格（可一次多筆）';
                 } else {
                     msg = '目前分類下沒有符合的品項';
                 }
@@ -1699,13 +1698,12 @@
             const row = suggestRows[idx];
             if (!row) return;
             const input = document.getElementById('searchInput');
-            // 點選候選＝把這個品項加進查詢清單，並清掉剛打的那一段文字
+            // 點選候選＝加入查詢清單並清掉剛打的那一段文字，然後直接列出結果（不用再按查詢）
             const info = lastTokenInfo(input.value);
             addSelected(row.item);
             input.value = info.prefix.replace(/[\s,，、;；]+$/u, '');
             hideSuggest();
-            setHint('已加入「' + row.item.name + (row.item.category ? '（' + row.item.category + '）' : '') +
-                '」到查詢清單，可繼續輸入其他藥名，完成後按「查詢」');
+            runQuery();
         }
 
         function pickActiveSuggestion() {
@@ -1799,8 +1797,19 @@
             });
         }
 
-        // 按「查詢」：只輸出「已點選的品項」；文字輸入中唯一命中的自動帶入，
-        // 多筆並列時不猜，改成提示使用者從候選清單點選
+        // 輸入剛好對到某個品項的完整名稱（分數 10000 且只有一個）才自動列入；
+        // 只打到一半（開頭符合／部分符合）仍交給候選清單點選，避免打字中途亂跳
+        function autoExactHit(token) {
+            if (!token || isTokenCovered(token)) return null;
+            const hits = searchRows(token);
+            if (!hits.length) return null;
+            const best = hits[0].score;
+            const top = hits.filter(function(h) { return h.score === best; });
+            if (best < 10000 || top.length !== 1) return null;
+            return top[0];
+        }
+
+        // 依目前的查詢清單重新輸出結果（打字完全命中、點選候選、移除品項都會叫這裡）
         function runQuery() {
             hideSuggest();
             const input = document.getElementById('searchInput');
@@ -1832,9 +1841,10 @@
 
                 const best = hits[0].score;
                 const top = hits.filter(function(h) { return h.score === best; });
-                if (top.length === 1) {
-                    addSelected(top[0].item);
-                    const key = itemKeyOf(top[0].item);
+                const auto = autoExactHit(token);
+                if (auto) {
+                    addSelected(auto.item);
+                    const key = itemKeyOf(auto.item);
                     scoreByKey[key] = Math.max(scoreByKey[key] || 0, best);
                     autoKeys[key] = true;
                 } else {
@@ -1863,7 +1873,7 @@
                 parts.push('查無：' + notFound.slice(0, 5).join('、') + (notFound.length > 5 ? '…' : ''));
             }
             if (queryRows.length === 0 && ambiguous.length === 0 && notFound.length === 0) {
-                parts.push('請先輸入藥名並點選候選品項');
+                parts.push('請輸入完整品名，或點選候選品項');
             }
             lastQueryHint = parts.join('｜');
 
@@ -1874,11 +1884,17 @@
 
         // ===== 事件監聽 =====
         const searchInput = document.getElementById('searchInput');
+        let inputTimer = null;
 
+        // 打字時：先更新候選清單；停手 0.4 秒後若打的是完整品名，就直接列入並列出結果
         searchInput.addEventListener('input', function() {
-            // 打字階段只更新候選清單，不即時列出結果；結果等使用者按「查詢」
             renderSuggestions();
-            if (queryRows !== null) setHint('輸入內容已變更，按「查詢」更新結果');
+            if (inputTimer) clearTimeout(inputTimer);
+            inputTimer = setTimeout(function() {
+                const tokens = splitQueryTokens(searchInput.value);
+                const hit = tokens.some(function(t) { return !!autoExactHit(t); });
+                if (hit) runQuery();
+            }, 400);
         });
 
         searchInput.addEventListener('keydown', function(e) {
@@ -1923,10 +1939,6 @@
             if (!x) return;
             e.preventDefault();
             removeSelected(parseInt(x.dataset.idx, 10));
-        });
-
-        document.getElementById('searchBtn').addEventListener('click', function() {
-            runQuery();
         });
 
         document.getElementById('clearBtn').addEventListener('click', clearAll);

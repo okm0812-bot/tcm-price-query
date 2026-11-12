@@ -49,7 +49,7 @@ const api = new Function(
     'scoreExactTier, scoreFuzzyTier, editSimilarity, levenshteinDistance, uniqueCharMatchScore, SAMPLE_CSV_TEXT, ' +
     'getSuggestions, escapeHtml, splitQueryTokens, lastTokenInfo, rowsToText, modeLabel, ' +
     'mergeSheets, SHEETS, commitData, runQuery, addSelected, addSelectedByName, removeSelected, ' +
-    'clearSelected, renderChips, findItem, clearAll, renderTable, specNoteText, ' +
+    'clearSelected, renderChips, findItem, clearAll, renderTable, specNoteText, autoExactHit, ' +
     'getQueryRows: function() { return queryRows; }, ' +
     'getSelected: function() { return selectedItems.slice(); }, ' +
     'getDiscount: function() { return discount; }, ' +
@@ -179,7 +179,7 @@ api.renderTable();
 check('尚未查詢：不列出全部品項，只給操作提示',
     (els.resultList.innerHTML.match(/class="item-card"/g) || []).length === 0 &&
     (els.resultList.innerHTML.match(/class="result-empty"/g) || []).length === 1 &&
-    els.resultList.innerHTML.indexOf('按「查詢」列出結果') !== -1, els.resultList.innerHTML.slice(0, 120));
+    els.resultList.innerHTML.indexOf('輸入完整品名，或點選上面的候選品項') !== -1, els.resultList.innerHTML.slice(0, 120));
 
 api.addSelectedByName('桂枝湯 200g', '複方');
 api.runQuery();
@@ -206,28 +206,31 @@ check('移除查詢清單品項後結果同步減少',
     api.getQueryRows().length === 1 && (els.resultList.innerHTML.match(/class="item-card"/g) || []).length === 1,
     'n=' + api.getQueryRows().length);
 
-// 只打字沒點選：唯一命中才自動帶入，多筆並列不猜
+// 打完整品名就自動列出；只打一部分則交給候選清單點選
 api.clearSelected();
-els.searchInput.value = '炙甘草';
+els.searchInput.value = '炙甘草 100g';
 api.runQuery();
-check('唯一命中：「炙甘草」自動帶入 1 筆', api.getQueryRows().length === 1 && api.getQueryRows()[0].item.name === '炙甘草 100g',
+check('完整品名：輸入「炙甘草 100g」自動列出 1 筆',
+    api.getQueryRows().length === 1 && api.getQueryRows()[0].item.name === '炙甘草 100g',
     api.getQueryRows().map(function (r) { return r.item.name; }).join('、'));
-check('唯一命中：自動帶入後輸入框清空', els.searchInput.value === '', JSON.stringify(els.searchInput.value));
+check('完整品名：自動列出後輸入框清空', els.searchInput.value === '', JSON.stringify(els.searchInput.value));
 
 api.clearSelected();
-els.searchInput.value = '地黃';
+els.searchInput.value = '桂枝';
 api.runQuery();
-check('多筆符合：不自動挑選、不列出結果', api.getQueryRows().length === 0, 'n=' + api.getQueryRows().length);
-check('多筆符合：提示請從候選清單點選',
+check('只打一部分：不自動列入結果', api.getQueryRows().length === 0, 'n=' + api.getQueryRows().length);
+check('只打一部分：提示請從候選清單點選',
     els.matchHint.style.display === 'block' && els.matchHint.textContent.indexOf('待選取') !== -1,
     String(els.matchHint.textContent));
-check('多筆符合：未選的文字留在輸入框', els.searchInput.value === '地黃', JSON.stringify(els.searchInput.value));
+check('只打一部分：文字留在輸入框等使用者點選', els.searchInput.value === '桂枝', JSON.stringify(els.searchInput.value));
 
-// 打字階段不會即時重算結果
+// 打字階段不會自己跑查詢（只有完整品名命中才會自動列出）
+api.clearSelected();
 els.searchInput.value = '不存在的藥';
 api.renderTable();
-check('打字不即時查詢：結果仍是上一次查詢', api.getQueryRows().length === 0 && els.resultList.innerHTML.indexOf('查無') === -1,
-    els.resultList.innerHTML.slice(0, 80));
+check('打字不自動查詢：沒有查詢結果、也不顯示查無',
+    api.getQueryRows() === null && els.resultList.innerHTML.indexOf('查無') === -1,
+    String(api.getQueryRows()) + '｜' + els.resultList.innerHTML.slice(0, 80));
 
 // 內建示範資料（發布成線上網頁、相對路徑 CSV 不存在時的最後備援）
 const inline = api.buildData(api.SAMPLE_CSV_TEXT);
@@ -257,7 +260,7 @@ api.renderTable();
 check('未查詢時即使有分類篩選也只顯示提示列',
     (els.resultList.innerHTML.match(/class="item-card"/g) || []).length === 0 &&
     (els.resultList.innerHTML.match(/class="result-empty"/g) || []).length === 1 &&
-    els.resultList.innerHTML.indexOf('按「查詢」列出結果') !== -1, els.resultList.innerHTML.slice(0, 120));
+    els.resultList.innerHTML.indexOf('輸入完整品名，或點選上面的候選品項') !== -1, els.resultList.innerHTML.slice(0, 120));
 
 els.categorySelect.value = 'all';
 els.searchInput.value = '不存在的藥';
@@ -277,16 +280,16 @@ check('多筆：lastTokenInfo 取出最後一段',
     api.lastTokenInfo('桂枝湯、炙甘').token === '炙甘' && api.lastTokenInfo('桂枝湯、炙甘').prefix === '桂枝湯、',
     JSON.stringify(api.lastTokenInfo('桂枝湯、炙甘')));
 
-els.searchInput.value = '桂枝湯\n炙甘草';
+els.searchInput.value = '桂枝湯 200g\n炙甘草 100g';
 api.clearSelected();
 api.runQuery();
-check('多筆：兩段輸入各自唯一命中，合計 2 列',
+check('多筆：兩行完整品名各自自動列出，合計 2 列',
     (els.resultList.innerHTML.match(/class="item-card"/g) || []).length === 2,
     'rows=' + (els.resultList.innerHTML.match(/class="item-card"/g) || []).length);
 check('多筆：提示列說明列出筆數', els.matchHint.style.display === 'block' &&
     els.matchHint.textContent.indexOf('已列出 2 筆品項') !== -1, String(els.matchHint.textContent));
 
-els.searchInput.value = '桂枝湯\n不存在的藥';
+els.searchInput.value = '桂枝湯 200g\n不存在的藥';
 api.clearSelected();
 api.runQuery();
 check('多筆：查無的品項列在提示列', els.matchHint.textContent.indexOf('查無：不存在的藥') !== -1,
@@ -464,7 +467,7 @@ check('清除：查詢後有 2 張卡片', beforeClear === 2, 'cards=' + beforeC
 api.clearAll();
 const afterCards = (els.resultList.innerHTML.match(/class="item-card"/g) || []).length;
 check('清除：卡片清空、回到未查詢提示',
-    afterCards === 0 && els.resultList.innerHTML.indexOf('按「查詢」列出結果') !== -1,
+    afterCards === 0 && els.resultList.innerHTML.indexOf('輸入完整品名，或點選上面的候選品項') !== -1,
     'cards=' + afterCards);
 check('清除：輸入框被清空', els.searchInput.value === '', els.searchInput.value);
 check('清除：查詢清單與結果都清空',
@@ -540,18 +543,34 @@ check('空白分隔：含規格的品項不會被拆成兩筆',
     api.searchRows('桂枝湯 200g')[0].item.name === '桂枝湯 200g',
     api.searchRows('桂枝湯 200g').length + ' 筆');
 
+// 用沒有規格的品名測試「空白分隔多筆」（示範資料的品名都帶規格，無法用空白拆）
+const NO_SPEC_CSV = [
+    '"品名規格","富田 2026/01/01價格","勝昌 2026/01/01價格"',
+    '乙字湯,500,480',
+    '桂枝湯,520,500'
+].join('\n');
+api.applyCsv(NO_SPEC_CSV, '空白分隔測試');
+
 api.setState('origin', 10);
 api.clearSelected();
-els.searchInput.value = '桂枝湯 炙甘草湯';
+els.searchInput.value = '乙字湯 桂枝湯';
 api.runQuery();
-check('空白分隔：貼「桂枝湯 炙甘草湯」按查詢會列出 2 筆',
+check('空白分隔：貼「乙字湯 桂枝湯」會列出 2 筆',
     api.getQueryRows().length === 2 && api.getSelected().length === 2,
     'rows=' + api.getQueryRows().length);
 
 api.clearSelected();
+els.searchInput.value = '桂枝湯';
+api.runQuery();
+check('空白分隔：單一品名仍只有 1 筆', api.getQueryRows().length === 1 && api.getSelected().length === 1,
+    'rows=' + api.getQueryRows().length);
+
+// 回到示範資料繼續後面的測試
+api.applyCsv(api.SAMPLE_CSV_TEXT, '內建示範資料', true);
+api.clearSelected();
 els.searchInput.value = '桂枝湯 200g';
 api.runQuery();
-check('空白分隔：貼「桂枝湯 200g」仍只有 1 筆（規格被保留）',
+check('含規格：貼「桂枝湯 200g」不會被空白拆開',
     api.getQueryRows().length === 1 &&
     api.getSelected()[0].name === '桂枝湯 200g',
     api.getSelected().map(function(x) { return x.name; }).join('/'));
