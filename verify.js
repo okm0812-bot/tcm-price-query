@@ -52,11 +52,13 @@ const api = new Function(
     'clearSelected, renderChips, findItem, clearAll, renderTable, specNoteText, autoExactHit, ' +
     'getQueryRows: function() { return queryRows; }, ' +
     'getSelected: function() { return selectedItems.slice(); }, ' +
-    'getDiscount: function() { return discount; }, ' +
+    'getDiscount: function() { return defaultDiscount; }, ' +
+    'getFactoryDiscounts: function() { return JSON.parse(JSON.stringify(factoryDiscounts)); }, ' +
+    'setFactoryDiscount: setFactoryDiscount, ' +
     'getModes: function() { return JSON.parse(JSON.stringify(factoryModes)); }, ' +
     'setFactoryMode: setFactoryMode, ' +
-    'setState: function(m, d){ defaultMode = m; discount = d; ' +
-    'FACTORIES.forEach(function(f){ factoryModes[f] = m; }); } };'
+    'setState: function(m, d){ defaultMode = m; defaultDiscount = d; ' +
+    'FACTORIES.forEach(function(f){ factoryModes[f] = m; factoryDiscounts[f] = d; }); } };'
 )(documentStub, fetchStub, AbortController, setTimeout, clearTimeout, function () {});
 
 let pass = 0, fail = 0;
@@ -476,12 +478,19 @@ api.setState('origin', 10);
 
 // ---------- 13.5 清除按鈕 ----------
 api.setFactoryMode('富田', '5+1');
+// 個別廠商折數：只影響那一家
+api.setFactoryDiscount('仙豐', 7);
 api.clearSelected();
 api.addSelectedByName('桂枝湯 200g', '複方');
 api.addSelectedByName('炙甘草湯 200g', '複方');
 api.runQuery();
 const beforeClear = (els.resultList.innerHTML.match(/class="item-card"/g) || []).length;
 check('清除：查詢後有 2 張卡片', beforeClear === 2, 'cards=' + beforeClear);
+check('個別折數：仙豐 7 折、科達仍是原本的 10 折',
+    api.calcPrice(1000, '仙豐') === 700 && api.calcPrice(1000, '科達') === 1000,
+    '仙豐=' + api.calcPrice(1000, '仙豐') + ' 科達=' + api.calcPrice(1000, '科達'));
+check('個別折數：該廠搭贈仍疊在同廠折數後（富田 10 折 5+1 → 833）',
+    api.calcPrice(1000, '富田') === 833, '' + api.calcPrice(1000, '富田'));
 
 api.clearAll();
 const afterCards = (els.resultList.innerHTML.match(/class="item-card"/g) || []).length;
@@ -493,19 +502,19 @@ check('清除：查詢清單與結果都清空',
     api.getSelected().length === 0 && api.getQueryRows() === null,
     'selected=' + api.getSelected().length);
 check('清除：上方標籤列隱藏', els.selectedChips.style.display === 'none', String(els.selectedChips.style.display));
-check('清除：提示說明設定仍保留',
-    els.matchHint.textContent.indexOf('折扣與各廠搭贈設定保留') !== -1, els.matchHint.textContent);
-check('清除：折扣與各廠搭贈設定沒有被重設',
-    api.getDiscount() === 10 && api.getModes()['富田'] === '5+1',
-    'discount=' + api.getDiscount() + ' 富田=' + api.getModes()['富田']);
+check('清除：提示說明搭贈與折數一起被清掉',
+    els.matchHint.textContent.indexOf('各廠搭贈與折數') !== -1 && els.matchHint.textContent.indexOf('回到原價') !== -1,
+    els.matchHint.textContent);
+check('清除：5+1／10+1 全部回到原價',
+    FACTORIES_ALL_ORIGIN(), JSON.stringify(api.getModes()));
+check('清除：各廠折數回到預設 6 折',
+    api.getDiscount() === 6 && api.getFactoryDiscounts()['仙豐'] === 6 && api.getFactoryDiscounts()['富田'] === 6,
+    'default=' + api.getDiscount() + ' 仙豐=' + api.getFactoryDiscounts()['仙豐']);
+check('清除：清掉後 1000 元回到 6 折 600', api.calcPrice(1000, '富田') === 600, '' + api.calcPrice(1000, '富田'));
 
-// 清除後重新查詢，之前的搭贈設定仍然生效
-api.addSelectedByName('桂枝湯 200g', '複方');
-api.runQuery();
-check('清除：重新查詢時舊的搭贈設定仍生效',
-    api.calcPrice(1200, '富田') === 1000 &&
-    (els.resultList.innerHTML.match(/<i class="tag">5\+1<\/i>/g) || []).length === 1,
-    els.resultList.innerHTML.slice(0, 120));
+function FACTORIES_ALL_ORIGIN() {
+    return api.FACTORIES.every(function(f) { return api.getModes()[f] === 'origin'; });
+}
 
 api.setState('origin', 10);
 

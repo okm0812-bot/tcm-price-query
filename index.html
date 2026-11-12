@@ -401,9 +401,29 @@
         .gift-title { font-size: 13px; line-height: 1.5; color: #475569; cursor: pointer; padding: 2px 0; }
         .gift-title::marker { color: #94a3b8; }
         #giftGrid { margin-top: 10px; }
-        .gift-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px; }
-        .gift-item { display: flex; align-items: center; gap: 6px; }
+        .gift-grid { display: grid; grid-template-columns: repeat(1, minmax(0, 1fr)); gap: 10px; }
+        .gift-item { display: flex; flex-direction: column; gap: 5px; }
+        .gift-top { display: flex; align-items: center; gap: 6px; }
         .gift-item .fname { flex: 0 0 auto; min-width: 2.9em; font-size: 14px; color: #334155; white-space: nowrap; }
+        .gift-disc-wrap {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 0;
+            font-size: 12px;
+            color: #64748b;
+            white-space: nowrap;
+        }
+        .gift-disc {
+            width: 60px;
+            height: 38px;
+            text-align: center;
+            font-size: 16px;
+            border: 1px solid #dbe3ec;
+            border-radius: 8px;
+            background: #fff;
+            color: #0f172a;
+        }
         .gift-sel {
             flex: 1 1 auto;
             min-width: 68px;
@@ -463,6 +483,9 @@
             border: 1px solid #fde68a;
             border-radius: 8px;
         }
+        @media (min-width: 380px) {
+            .gift-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
         @media (min-width: 480px) {
             .price-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         }
@@ -488,7 +511,7 @@
 
             <div class="control-row">
                 <div class="discount-wrap">
-                    <span>折扣：</span>
+                    <span>全部折數：</span>
                     <input type="number" id="discountInput" class="discount-input" value="6" min="1" max="10" step="0.5">
                     <span>折</span>
                 </div>
@@ -599,11 +622,20 @@
         let queryState = { notFound: [], ambiguous: [] };
         let lastQueryHint = '';  // 上一次算出的完整提示（切換分類時要還原）
         const DEFAULT_DISCOUNT = 6; // 預設 6 折
-        let discount = DEFAULT_DISCOUNT;
+        let defaultDiscount = DEFAULT_DISCOUNT; // 上方「全部折數」，一改就套到每一家
+        // 每家廠商各自的折數（可在搭贈面板裡逐廠改）
+        let factoryDiscounts = {};
         // 每家廠商各自的搭贈方式：'origin'（原價，不套搭贈）／'5+1'／'10+1'
         let factoryModes = {};
-        FACTORIES.forEach(function(f) { factoryModes[f] = 'origin'; });
+        FACTORIES.forEach(function(f) {
+            factoryModes[f] = 'origin';
+            factoryDiscounts[f] = DEFAULT_DISCOUNT;
+        });
         let defaultMode = 'origin'; // 未指定廠商時使用（給驗證腳本與舊呼叫端）
+        function discountOf(factory) {
+            if (factory && factoryDiscounts.hasOwnProperty(factory)) return factoryDiscounts[factory];
+            return defaultDiscount;
+        }
 
         // ===== 簡轉繁對照表（移植自 tcm_lookup 的 S2T_MAP）=====
         const S2T_MAP = {
@@ -1085,13 +1117,13 @@
             return value.trim(); // 非數字（停售、時價等）保留原文
         }
 
-        // 價格計算：先折扣、再套用「該廠商自己選的」搭贈方式
+        // 價格計算：先套「該廠商自己的折數」、再套「該廠商自己選的」搭贈方式
         function calcPrice(originalPrice, factory) {
             if (!originalPrice || typeof originalPrice !== 'number') {
                 return originalPrice;
             }
 
-            let price = originalPrice * (discount / 10);
+            let price = originalPrice * (discountOf(factory) / 10);
             const mode = (factory && factoryModes[factory]) ? factoryModes[factory] : defaultMode;
             if (mode === '5+1') {
                 price = price * 5 / 6;
@@ -1320,14 +1352,24 @@
             return '不套搭贈';
         }
 
-        // 面板標題摘要目前有哪些廠商套了搭贈
+        // 折數摘要：全部相同時寫「全部 6 折」，有例外時逐廠列出
+        function discountSummary() {
+            const parts = [];
+            FACTORIES.forEach(function(f) {
+                const d = factoryDiscounts[f];
+                if (d !== defaultDiscount) parts.push(f + ' ' + d + ' 折');
+            });
+            return parts.length ? ('全部 ' + defaultDiscount + ' 折；' + parts.join('、')) : ('全部 ' + defaultDiscount + ' 折');
+        }
+
+        // 面板標題摘要目前有哪些廠商套了搭贈、折數有無例外
         function updateGiftSummary() {
             const el = document.getElementById('giftSummary');
             if (!el) return;
             const s = modeSummary();
-            el.textContent = s === '全部原價'
+            el.textContent = (s === '全部原價'
                 ? '廠商搭贈：全部原價（點此設定 5+1／10+1）'
-                : '廠商搭贈：' + s + '（點此調整）';
+                : '廠商搭贈：' + s + '（點此調整）') + '｜折數 ' + discountSummary();
         }
 
         function buildGiftPanel() {
@@ -1336,13 +1378,16 @@
             let html = '';
             FACTORIES.forEach(function(f) {
                 const cur = factoryModes[f];
-                html += '<div class="gift-item"><span class="fname">' + f + '</span>' +
+                html += '<div class="gift-item"><div class="gift-top"><span class="fname">' + f + '</span>' +
                     '<select class="gift-sel' + (cur !== 'origin' ? ' on' : '') + '" data-factory="' + f + '">';
                 MODE_OPTIONS.forEach(function(o) {
                     html += '<option value="' + o.value + '"' + (cur === o.value ? ' selected' : '') + '>' +
                         o.label + '</option>';
                 });
-                html += '</select></div>';
+                html += '</select></div>' +
+                    '<label class="gift-disc-wrap">折數 ' +
+                    '<input type="number" class="gift-disc" data-factory="' + f + '" value="' + factoryDiscounts[f] +
+                    '" min="1" max="10" step="0.5"> 折</label></div>';
             });
             grid.innerHTML = html;
             grid.querySelectorAll('.gift-sel').forEach(function(sel) {
@@ -1350,7 +1395,24 @@
                     setFactoryMode(sel.getAttribute('data-factory'), sel.value);
                 });
             });
+            grid.querySelectorAll('.gift-disc').forEach(function(inp) {
+                inp.addEventListener('input', function() {
+                    setFactoryDiscount(inp.getAttribute('data-factory'), inp.value);
+                });
+            });
             updateGiftSummary();
+        }
+
+        // 設定某家廠商的折數，立即用同一份查詢結果重算（不必重新搜尋）
+        function setFactoryDiscount(factory, value) {
+            if (!factoryDiscounts.hasOwnProperty(factory)) return;
+            const v = parseFloat(value);
+            if (isNaN(v) || v <= 0) return; // 清空或 0 時先不套用，等使用者打完
+            const d = Math.min(v, 10);
+            factoryDiscounts[factory] = d;
+            renderTable();
+            updateGiftSummary();
+            setHint(factory + '：' + d + ' 折' + (factoryModes[factory] !== 'origin' ? '＋' + factoryModes[factory] : ''));
         }
 
         // 設定某家廠商的搭贈方式，立即用同一份查詢結果重算（不必重新搜尋）
@@ -1607,8 +1669,8 @@
             const text = rowsToText(lastRows);
             const done = function(ok) {
                 if (ok) {
-                    setHint('已複製 ' + lastRows.length + ' 筆品項（搭贈：' + modeSummary() + '；折扣 ' + discount +
-                        ' 折）｜格式已排好，可直接貼到 LINE 或記事本');
+                    setHint('已複製 ' + lastRows.length + ' 筆品項（搭贈：' + modeSummary() + '；折數 ' + discountSummary() +
+                        '）｜格式已排好，可直接貼到 LINE 或記事本');
                 } else {
                     setHint('複製失敗：瀏覽器未允許存取剪貼簿，請改用滑鼠選取表格內容複製');
                 }
@@ -1787,14 +1849,31 @@
             renderChips();
         }
 
-        // 「清除」按鈕：清空輸入框、查詢清單與結果（保留折扣與各廠搭贈設定）
+        // 「清除」按鈕：清空輸入框、查詢清單與結果，並把各廠 5+1／10+1 與折數一起歸零
         function clearAll() {
             const si = document.getElementById('searchInput');
             if (si) si.value = '';
             hideSuggest();
             clearSelected();
+            // 各廠折數與搭贈都回到預設（原價、6 折）
+            defaultDiscount = DEFAULT_DISCOUNT;
+            FACTORIES.forEach(function(f) {
+                factoryModes[f] = 'origin';
+                factoryDiscounts[f] = DEFAULT_DISCOUNT;
+            });
+            const di = document.getElementById('discountInput');
+            if (di) di.value = DEFAULT_DISCOUNT;
+            const grid = document.getElementById('giftGrid');
+            if (grid) {
+                grid.querySelectorAll('.gift-sel').forEach(function(sel) {
+                    sel.value = 'origin';
+                    sel.className = 'gift-sel';
+                });
+                grid.querySelectorAll('.gift-disc').forEach(function(inp) { inp.value = DEFAULT_DISCOUNT; });
+            }
+            buildGiftPanel();
             renderTable();
-            setHint('已清除輸入與查詢結果（折扣與各廠搭贈設定保留）');
+            setHint('已清除輸入、查詢結果，以及各廠搭贈與折數（回到原價、' + DEFAULT_DISCOUNT + ' 折）');
         }
 
         // 這段文字是否已經被清單裡的品項涵蓋（避免同一筆重複查）
@@ -1931,12 +2010,20 @@
 
         document.getElementById('categorySelect').addEventListener('change', renderTable);
 
+        // 上方「全部折數」：一改就套到每一家（要單獨改某家，到搭贈面板的該廠折數欄位改）
         document.getElementById('discountInput').addEventListener('input', function(e) {
             const v = parseFloat(e.target.value);
-            discount = (isNaN(v) || v <= 0) ? DEFAULT_DISCOUNT : Math.min(v, 10);
+            const d = (isNaN(v) || v <= 0) ? DEFAULT_DISCOUNT : Math.min(v, 10);
+            defaultDiscount = d;
+            FACTORIES.forEach(function(f) { factoryDiscounts[f] = d; });
+            const grid = document.getElementById('giftGrid');
+            if (grid) {
+                grid.querySelectorAll('.gift-disc').forEach(function(inp) { inp.value = d; });
+            }
             renderTable();
+            updateGiftSummary();
             // 輸入 0 或空白時改回預設 6 折，講明避免使用者以為套用了 0 折
-            if (isNaN(v) || v <= 0) setHint('折扣請輸入 1～10（目前以 ' + DEFAULT_DISCOUNT + ' 折計算）');
+            if (isNaN(v) || v <= 0) setHint('折數請輸入 1～10（目前全部以 ' + DEFAULT_DISCOUNT + ' 折計算）');
         });
 
         // 搭贈面板的每廠 select 由 buildGiftPanel() 綁定（見 setFactoryMode）
