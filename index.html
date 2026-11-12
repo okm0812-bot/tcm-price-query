@@ -399,14 +399,40 @@
             border-radius: 16px;
         }
         .gift-title {
-            font-size: 15px;
-            font-weight: 600;
-            line-height: 1.5;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            list-style: none;
+            font-size: 16px;
+            font-weight: 700;
+            line-height: 1.55;
             color: #1e3a8a;
             cursor: pointer;
             padding: 2px 0;
         }
-        .gift-title::marker { color: #2563eb; }
+        .gift-title::-webkit-details-marker { display: none; }
+        .gift-title .gt-text { flex: 1 1 auto; min-width: 0; }
+        .gift-title .gt-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            flex: 0 0 auto;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: #2563eb;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .gift-title .gt-chip svg {
+            width: 14px;
+            height: 14px;
+            transition: transform 0.18s ease;
+        }
+        #giftDetails[open] .gt-chip svg { transform: rotate(180deg); }
+        #giftDetails[open] .gt-chip { background: #1d4ed8; }
         #giftGrid { margin-top: 12px; }
         .gift-grid { display: grid; grid-template-columns: repeat(1, minmax(0, 1fr)); gap: 10px; }
         .gift-item {
@@ -564,7 +590,10 @@
         <div class="chips" id="selectedChips"></div>
 
         <details class="gift-panel" id="giftDetails">
-            <summary class="gift-title" id="giftSummary">廠商搭贈：全部不搭贈（點此設定 5+1／10+1）</summary>
+            <summary class="gift-title" id="giftSummary">
+                <span class="gt-text">廠商搭贈：全部不搭贈｜折數 預設全部 6 折</span>
+                <span class="gt-chip">請點選設定<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            </summary>
             <div class="gift-grid" id="giftGrid"></div>
         </details>
 
@@ -1382,24 +1411,27 @@
             return '不套搭贈';
         }
 
-        // 折數摘要：全部相同時寫「全部 6 折」，有例外時逐廠列出
+        // 折數摘要：全部相同時寫「預設全部 6 折」，有例外時逐廠列出
         function discountSummary() {
             const parts = [];
             FACTORIES.forEach(function(f) {
                 const d = factoryDiscounts[f];
                 if (d !== defaultDiscount) parts.push(f + ' ' + d + ' 折');
             });
-            return parts.length ? ('全部 ' + defaultDiscount + ' 折；' + parts.join('、')) : ('全部 ' + defaultDiscount + ' 折');
+            const base = '預設全部 ' + defaultDiscount + ' 折';
+            return parts.length ? (base + '；' + parts.join('、')) : base;
         }
 
-        // 面板標題摘要目前有哪些廠商套了搭贈、折數有無例外
+        // 面板標題摘要目前有哪些廠商套了搭贈、折數有無例外；右側固定帶「請點選設定」圖示
         function updateGiftSummary() {
             const el = document.getElementById('giftSummary');
             if (!el) return;
             const s = modeSummary();
-            el.textContent = (s === '全部不搭贈'
-                ? '廠商搭贈：全部不搭贈（點此設定 5+1／10+1）'
-                : '廠商搭贈：' + s + '（點此調整）') + '｜折數 ' + discountSummary();
+            el.innerHTML = '<span class="gt-text">廠商搭贈：' + s + '｜折數 ' + discountSummary() + '</span>' +
+                '<span class="gt-chip">請點選設定' +
+                '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" ' +
+                'stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+                '</span>';
         }
 
         function buildGiftPanel() {

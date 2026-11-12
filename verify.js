@@ -440,6 +440,10 @@ check('搭贈：下拉選項為「不搭贈／5+1／10+1」',
     els.giftGrid.innerHTML.indexOf('>不搭贈</option>') !== -1 &&
     els.giftGrid.innerHTML.indexOf('>原價</option>') === -1,
     els.giftGrid.innerHTML.slice(0, 160));
+check('面板標題：折數前加「預設」並帶「請點選設定」圖示',
+    els.giftSummary.innerHTML.indexOf('預設全部 ' + api.getDiscount() + ' 折') !== -1 &&
+    els.giftSummary.innerHTML.indexOf('請點選設定') !== -1,
+    els.giftSummary.innerHTML.slice(0, 120));
 
 api.setFactoryMode('富田', '5+1');
 check('搭贈：單獨設定富田 5+1（1200 → 1,000）', api.calcPrice(1200, '富田') === 1000,
