@@ -65,6 +65,10 @@ function check(name, cond, detail) {
     else { fail++; console.log('FAIL  ' + name + (detail ? '  -> ' + detail : '')); }
 }
 
+// 預設折數要是 6 折（使用者指定），1000 → 600
+check('預設折扣：頁面初始為 6 折', api.getDiscount() === 6, 'discount=' + api.getDiscount());
+check('預設折扣：1000 元自動套 6 折 = 600', api.calcPrice(1000) === 600, '' + api.calcPrice(1000));
+
 const sample = fs.readFileSync(path.join(__dirname, 'sample-data.csv'), 'utf8');
 
 // ---------- 1. CSV 解析 ----------
